@@ -1,27 +1,32 @@
 import type { ReactNode } from "react";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import type { Metadata } from "next";
 
 import { DevDeployBadge } from "@/components/DevDeployBadge";
-import { Header } from "@/components/Header";
 import { WarmingBar } from "@/components/WarmingBanner";
 
 import "./globals.css";
 
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
-});
+const siteUrl = "https://morrow.coders.kr";
 
-const mono = JetBrains_Mono({
-  subsets: ["latin"],
-  variable: "--font-jetbrains-mono",
-  display: "swap",
-});
-
-export const metadata = {
-  title: "template-coders",
-  description: "A coders.kr-aware SPA starter.",
+export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
+  title: "MORROW — 좋아요 말고, 약속이 되는 사람",
+  description: "시간과 취향이 맞는 실제 회원을 만나고, 3분 Sync로 첫 대화부터 안전한 약속까지 이어가는 MORROW.",
+  openGraph: {
+    type: "website",
+    locale: "ko_KR",
+    url: siteUrl,
+    siteName: "MORROW",
+    title: "MORROW — 좋아요 말고, 약속이 되는 사람",
+    description: "시간과 취향이 맞는 실제 회원을 만나고, 3분 Sync로 첫 대화부터 안전한 약속까지 이어가는 MORROW.",
+    images: [{ url: "/og.png", alt: "MORROW — 좋아요 말고, 약속이 되는 사람" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "MORROW — 좋아요 말고, 약속이 되는 사람",
+    description: "시간과 취향이 맞는 실제 회원을 만나고, 3분 Sync로 첫 대화부터 안전한 약속까지 이어가는 MORROW.",
+    images: ["/og.png"],
+  },
 };
 
 export default function RootLayout({
@@ -30,23 +35,11 @@ export default function RootLayout({
   children: ReactNode;
 }) {
   return (
-    <html lang="en" className={`${inter.variable} ${mono.variable}`}>
+    <html lang="ko">
       <body>
         <WarmingBar />
         <DevDeployBadge />
-        <div className="mx-auto max-w-3xl px-6 sm:px-8 pb-16">
-          <Header />
-          <main>{children}</main>
-          <footer className="mt-20 border-t pt-6 text-[12px] text-muted-foreground leading-relaxed">
-            Hosted on{" "}
-            <a
-              href="https://coders.kr"
-              className="font-medium text-foreground/80 underline-offset-4 hover:underline"
-            >
-              coders.kr
-            </a>
-          </footer>
-        </div>
+        {children}
       </body>
     </html>
   );

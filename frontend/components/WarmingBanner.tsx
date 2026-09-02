@@ -34,10 +34,9 @@ export function WarmingBar() {
       <div className="mx-auto flex max-w-3xl items-center gap-2">
         <Snowflake className="size-4 shrink-0 text-muted-foreground" />
         <span>
-          <span className="font-medium">Warming up the server.</span>{" "}
+          <span className="font-medium">서비스를 준비하고 있어요.</span>{" "}
           <span className="text-muted-foreground">
-            This site idles between visits — first request takes ~30s while
-            the backend wakes up.
+            첫 요청은 서버가 깨어나는 동안 잠시 걸릴 수 있어요. 곧 연결됩니다.
           </span>
         </span>
       </div>

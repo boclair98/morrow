@@ -4,19 +4,16 @@
 #
 # Brings up:
 #   db        — Postgres 16 on :5432
-#   backend   — FastAPI on :8000, alembic upgrade + reload
+#   backend   — Kotlin + Spring Boot on :8000
 #   frontend  — Next.js dev on :3000 (proxies /api/* to backend)
 #
 # Zero setup: `docker compose up` works on a fresh clone — no .env needed.
 #
-# Identity in dev: there's no platform gate locally, so DEV_FAKE_USER is set
-# to a fixed UUID below and identity.py treats every request as that signed-in
-# user. Override it in backend/.env (copy .env.example) to test as someone else
-# or unset it to exercise the anonymous path. See app/core/identity.py.
+# Identity in dev: there is no platform gate locally, so DEV_FAKE_USER is set
+# to a fixed UUID below and Spring Security treats requests as that signed-in
+# user. Override it in backend/.env to test another identity, or unset it to
+# exercise the anonymous path.
 #
-# No redis / no arq — this template has no background jobs. If you add
-# them, mirror template-full's compose for the redis service.
-
 services:
   db:
     image: postgres:16-alpine
@@ -35,9 +32,9 @@ services:
       retries: 5
 
   backend:
-    image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
-    working_dir: /app
-    command: sh -c "uv sync --frozen && uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
     env_file:
@@ -46,17 +43,23 @@ services:
       - path: ./backend/.env
         required: false
     environment:
-      DATABASE_URL: postgresql+asyncpg://app:app@db:5432/app
+      DATABASE_URL: jdbc:postgresql://db:5432/app
+      DATABASE_USER: app
+      DATABASE_PASSWORD: app
+      REDIS_URL: redis://redis:6379
       # No platform gate locally → treat every request as this signed-in dev
-      # user (see app/core/identity.py). Override in backend/.env if you want
+      # user. Override in backend/.env if you want
       # to test as a different user, or unset to exercise the anonymous path.
       DEV_FAKE_USER: ${DEV_FAKE_USER:-00000000-0000-0000-0000-000000000001}
-    volumes:
-      - ./backend:/app
-      - /app/.venv
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_started
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --save "" --appendonly no
 
   frontend:
     image: node:22-alpine

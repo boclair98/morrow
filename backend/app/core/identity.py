@@ -1,32 +1,19 @@
-"""Identity dependency for FastAPI routes.
-
-The coders.kr platform gate validates the visitor's `coders_session`
-cookie *before* the request reaches this service, and stamps the
-identity on the way in:
-
-    X-Coders-User: <uuid>
-
-This module trusts that header. The gate wouldn't be sending it
-otherwise — the platform never forwards a value the visitor sets
-themselves (gate strips inbound X-Coders-User unconditionally).
-
-Two dependencies:
-    require_identity  → 401 if anonymous (use on auth-required endpoints)
-    optional_identity → None if anonymous (use on public-but-personalized)
-
-You typically don't need `require_identity` on POST endpoints — the
-platform gate already 302s anonymous mutations to /sso/login. It's
-defense-in-depth for self-hosted local dev and a clearer contract.
-"""
+"""Identity dependencies for native and app-owned standalone sessions."""
 
 from __future__ import annotations
 
+import hashlib
 import urllib.parse
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from fastapi import Header, HTTPException
+from fastapi import Depends, Header, HTTPException, Request
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.database import get_session
+from app.models import AuthSession, User
 
 
 def _parse_uuid(value: str | None) -> UUID | None:
@@ -38,38 +25,67 @@ def _parse_uuid(value: str | None) -> UUID | None:
         return None
 
 
-async def optional_identity(
-    x_coders_user: str | None = Header(default=None),
+def _token_hash(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+async def identity_from_values(
+    session: AsyncSession,
+    *,
+    x_coders_user: str | None,
+    session_token: str | None,
 ) -> UUID | None:
-    """Visitor UUID or None (anonymous)."""
-    parsed = _parse_uuid(x_coders_user)
-    if parsed is not None:
-        return parsed
-    # Local-dev fallback so curl works without the platform gate.
+    """Resolve a trusted identity without accepting spoofable standalone headers."""
+    if settings.auth_mode != "standalone":
+        native_id = _parse_uuid(x_coders_user)
+        if native_id is not None:
+            return native_id
+
+    if session_token:
+        now = datetime.now(UTC)
+        auth_session = await session.scalar(
+            select(AuthSession).where(
+                AuthSession.token_hash == _token_hash(session_token),
+                AuthSession.expires_at > now,
+            )
+        )
+        if auth_session:
+            user = await session.get(User, auth_session.user_id)
+            if user:
+                last_used = auth_session.last_used_at
+                if last_used.tzinfo is None:
+                    last_used = last_used.replace(tzinfo=UTC)
+                if now - last_used >= timedelta(hours=6):
+                    auth_session.last_used_at = now
+                return user.coders_id
+
     return _parse_uuid(settings.dev_fake_user)
+
+
+async def optional_identity(
+    request: Request,
+    x_coders_user: str | None = Header(default=None),
+    session: AsyncSession = Depends(get_session),
+) -> UUID | None:
+    return await identity_from_values(
+        session,
+        x_coders_user=x_coders_user,
+        session_token=request.cookies.get(settings.session_cookie_name),
+    )
 
 
 async def optional_display_name(
     x_coders_user_name: str | None = Header(default=None),
 ) -> str | None:
-    """The visitor's opt-in display name, if they set one on coders.kr. The gate
-    forwards it URL-encoded as `X-Coders-User-Name` (headers are ASCII; names may
-    be Unicode), so we percent-decode it. None when they haven't chosen a name —
-    fall back to a generated handle then."""
-    if not x_coders_user_name:
+    if settings.auth_mode == "standalone" or not x_coders_user_name:
         return None
     name = urllib.parse.unquote(x_coders_user_name).strip()
     return name or None
 
 
 async def require_identity(
-    x_coders_user: str | None = Header(default=None),
+    identity: UUID | None = Depends(optional_identity),
 ) -> UUID:
-    """Same as optional_identity but raises 401 if anonymous."""
-    cid = await optional_identity(x_coders_user)
-    if cid is None:
-        raise HTTPException(
-            status_code=401,
-            detail="sign in required",
-        )
-    return cid
+    if identity is None:
+        raise HTTPException(status_code=401, detail="sign in required")
+    return identity

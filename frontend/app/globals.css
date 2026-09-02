@@ -1,16 +1,6 @@
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css");
 @import "tailwindcss";
 @import "tw-animate-css";
-
-/* Notion-y minimal:
- * - Near-greyscale palette (Notion is essentially black/white/charcoal).
- * - One dark slate accent — used sparingly on primary CTAs.
- * - Light + auto-dark via prefers-color-scheme (no JS toggle yet; if a
- *   theme switcher lands later, add `.dark` overrides separately).
- * - Tight radius (4-6px), no shadows, generous line-height.
- *
- * Token names mirror shadcn's defaults so `npx shadcn add <x>` keeps
- * working without rewiring.
- */
 
 @theme inline {
   --color-background: var(--background);
@@ -32,117 +22,197 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-
   --font-sans: var(--font-sans-stack);
-  --font-mono: var(--font-mono-stack);
-
-  --radius-sm: calc(var(--radius) * 0.5);
-  --radius-md: calc(var(--radius) * 0.75);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.5);
+  --font-mono: ui-monospace, monospace;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
 }
 
 :root {
-  /* layout.tsx (next/font) sets --font-inter and --font-jetbrains-mono
-   * on <html>. We graft those onto the Tailwind font tokens with a
-   * system-fallback chain so the page is still readable if next/font
-   * fails to load. */
-  --font-sans-stack: var(--font-inter), ui-sans-serif, system-ui,
-    -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
-    "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
-  --font-mono-stack: var(--font-jetbrains-mono), ui-monospace,
-    SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono",
-    monospace;
-
-  --radius: 0.5rem;
-
-  /* Light. Greys lifted slightly so cards lift off the page without
-   * needing a shadow. */
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.18 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.18 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.18 0 0);
-
-  /* Notion uses near-black for body text and never a saturated brand
-   * colour. The primary CTA is the same dark slate — confident, not
-   * peacocky. */
-  --primary: oklch(0.22 0.01 264);
-  --primary-foreground: oklch(0.985 0 0);
-
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.22 0.01 264);
-
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.5 0 0);
-
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.22 0.01 264);
-
-  --destructive: oklch(0.58 0.22 27);
-  --destructive-foreground: oklch(0.985 0 0);
-
-  --border: oklch(0.92 0 0);
-  --input: oklch(0.92 0 0);
-  --ring: oklch(0.7 0 0);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: oklch(0.16 0 0);
-    --foreground: oklch(0.96 0 0);
-    --card: oklch(0.2 0 0);
-    --card-foreground: oklch(0.96 0 0);
-    --popover: oklch(0.2 0 0);
-    --popover-foreground: oklch(0.96 0 0);
-
-    --primary: oklch(0.92 0 0);
-    --primary-foreground: oklch(0.2 0 0);
-
-    --secondary: oklch(0.26 0 0);
-    --secondary-foreground: oklch(0.96 0 0);
-
-    --muted: oklch(0.26 0 0);
-    --muted-foreground: oklch(0.7 0 0);
-
-    --accent: oklch(0.26 0 0);
-    --accent-foreground: oklch(0.96 0 0);
-
-    --destructive: oklch(0.7 0.19 22);
-    --destructive-foreground: oklch(0.18 0 0);
-
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.55 0 0);
-  }
+  --font-sans-stack: "Pretendard Variable", Pretendard, -apple-system,
+    BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic",
+    sans-serif;
+  --background: #ffffff;
+  --foreground: #111111;
+  --card: #ffffff;
+  --card-foreground: #111111;
+  --popover: #ffffff;
+  --popover-foreground: #111111;
+  --primary: #ff385c;
+  --primary-foreground: #ffffff;
+  --secondary: #f5f5f5;
+  --secondary-foreground: #111111;
+  --muted: #f5f5f5;
+  --muted-foreground: #737373;
+  --accent: #fff0f3;
+  --accent-foreground: #d9234b;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #e5e5e5;
+  --input: #dedede;
+  --ring: #ff385c;
 }
 
 @layer base {
   * {
     @apply border-border;
   }
+
   *:focus-visible {
     @apply outline-ring outline-2 outline-offset-2;
   }
+
   html {
     @apply font-sans antialiased;
+    max-width: 100%;
+    overflow-x: clip;
+    scroll-behavior: smooth;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    /* Notion's body line-height is ~1.5; tighter than Tailwind's
-     * default (1.5/1.7 mix). */
-    line-height: 1.55;
   }
+
   body {
     @apply bg-background text-foreground;
+    max-width: 100%;
+    overflow-x: clip;
+    min-width: 320px;
+    font-synthesis: none;
+    line-height: 1.5;
   }
-  /* Notion's heading rhythm: bigger gap above, snug gap below. */
-  h1, h2, h3, h4 {
-    @apply font-semibold tracking-tight;
+
+  h1,
+  h2,
+  h3,
+  h4,
+  p {
+    margin: 0;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
     line-height: 1.25;
+    word-break: keep-all;
   }
-  code, kbd, pre, samp {
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  button,
+  a {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  code,
+  kbd,
+  pre,
+  samp {
     @apply font-mono;
+  }
+}
+
+::selection {
+  background: #ffd8e0;
+  color: #111111;
+}
+
+@layer components {
+  .morrow-input {
+    @apply h-12 w-full rounded-xl border border-[#e5d8d5] bg-white px-4 text-sm font-medium text-[#21191b] outline-none transition placeholder:text-[#a99a9d] focus:border-[#ea365d] focus:ring-1 focus:ring-[#ea365d];
+  }
+
+  .morrow-gradient-text {
+    color: #ff385c;
+  }
+
+  .morrow-glass {
+    border: 1px solid #e5e5e5;
+    background: #ffffff;
+    box-shadow: none;
+  }
+
+  .morrow-card-lift {
+    transition: border-color 0.2s ease, transform 0.2s ease;
+  }
+
+  .morrow-card-lift:hover {
+    transform: translateY(-2px);
+    border-color: #bdbdbd;
+  }
+
+  .morrow-profile-card {
+    content-visibility: auto;
+    contain-intrinsic-size: 360px 560px;
+  }
+
+  .morrow-dot-grid {
+    background-image: radial-gradient(rgba(17, 17, 17, 0.1) 1px, transparent 1px);
+    background-size: 18px 18px;
+  }
+
+  .morrow-dashboard {
+    background: #fffdfb;
+  }
+
+  .legal-copy {
+    @apply space-y-9 text-sm font-medium leading-7 text-[#555];
+  }
+
+  .legal-copy section {
+    @apply space-y-3;
+  }
+
+  .legal-copy h2 {
+    @apply text-lg font-black tracking-[-0.02em] text-[#111];
+  }
+
+  .legal-copy ul,
+  .legal-copy ol {
+    @apply ml-5 space-y-2;
+  }
+
+  .legal-copy ul {
+    list-style: disc;
+  }
+
+  .legal-copy ol {
+    list-style: decimal;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (max-width: 767px) {
+  [data-coders-support] {
+    right: 12px !important;
+    bottom: calc(86px + env(safe-area-inset-bottom)) !important;
+  }
+
+  /* The public login page has no fixed bottom navigation. Keep the platform
+     support control from covering the social-login buttons there. */
+  body:has(.morrow-login) [data-coders-support] {
+    top: calc(72px + env(safe-area-inset-top)) !important;
+    bottom: auto !important;
   }
 }

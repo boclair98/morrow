@@ -23,15 +23,73 @@ proxy_buffer_size          32k;
 proxy_buffers              8 32k;
 proxy_busy_buffers_size    64k;
 
+# Public OAuth readiness contains no secrets and changes only when a deploy or
+# environment update happens. Keep it in the always-on web pod so the login UI
+# never waits for an API scale-from-zero.
+proxy_cache_path /var/cache/nginx/morrow-auth levels=1:2 keys_zone=morrow_auth:1m max_size=5m inactive=24h use_temp_path=off;
+
 server {
   listen 80;
   server_name _;
+  server_tokens off;
+  # The API still enforces 32KB for ordinary JSON and 4MB only for the
+  # client-compressed photo endpoint. nginx must allow the larger request to
+  # reach that endpoint before the application-level guard can classify it.
+  client_max_body_size 4m;
+
+  add_header X-Content-Type-Options "nosniff" always;
+  add_header X-Frame-Options "DENY" always;
+  add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+  add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+  add_header Content-Security-Policy "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; frame-src https://challenges.cloudflare.com; img-src 'self' data: blob: https://*.daumcdn.net https://*.kakaocdn.net https://*.kakao.com; connect-src 'self' https://challenges.cloudflare.com https://dapi.kakao.com; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://dapi.kakao.com https://t1.daumcdn.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' data: https://cdn.jsdelivr.net" always;
 
   root /usr/share/nginx/html;
   index index.html;
 
+  # Durable messages travel over WebSocket for instant delivery. The backend
+  # persists first, then broadcasts; clients reconnect and refetch after a
+  # rolling deploy or spot-node interruption.
+  location /api/ws/ {
+    set $backend "${BACKEND_URL}";
+    proxy_pass        $backend;
+    proxy_http_version 1.1;
+    proxy_set_header   Host $proxy_host;
+    proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header   X-Forwarded-Proto $scheme;
+    proxy_set_header   X-Forwarded-Host $host;
+    proxy_set_header   Upgrade $http_upgrade;
+    proxy_set_header   Connection "upgrade";
+    proxy_pass_request_headers on;
+    proxy_buffering off;
+    proxy_connect_timeout 10s;
+    proxy_send_timeout 3600s;
+    proxy_read_timeout 3600s;
+  }
+
   # /api/* → backend. The trailing slash on `location` is paired with a
   # variable proxy_pass so nginx forwards $request_uri verbatim.
+  location = /api/auth/providers {
+    set $backend "${BACKEND_URL}";
+    proxy_pass        $backend;
+    proxy_http_version 1.1;
+    proxy_set_header   Host $proxy_host;
+    proxy_set_header   X-Forwarded-Proto $scheme;
+    proxy_set_header   X-Forwarded-Host $host;
+    proxy_pass_request_headers off;
+    proxy_connect_timeout 5s;
+    proxy_send_timeout 45s;
+    proxy_read_timeout 45s;
+
+    proxy_cache morrow_auth;
+    proxy_cache_key $uri;
+    proxy_cache_valid 200 24h;
+    proxy_cache_valid any 1m;
+    proxy_cache_lock on;
+    proxy_cache_background_update on;
+    proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+    add_header X-Morrow-Auth-Cache $upstream_cache_status always;
+  }
+
   location /api/ {
     set $backend "${BACKEND_URL}";
     proxy_pass        $backend;
@@ -50,7 +108,7 @@ server {
     # tcs.coders.kr is the visible host the upstream might want for
     # building absolute URLs; pass it explicitly under a different name.
     proxy_set_header   X-Forwarded-Host $host;
-    # Forward the platform gate's identity header straight through.
+    # Forward cookies and ordinary request headers to app-owned auth.
     proxy_pass_request_headers on;
     # Hold the request through a cold-start of the api KSvc (scale-to-zero,
     # spinning up a fresh pod runs `alembic upgrade head` + uvicorn boot in
@@ -60,6 +118,7 @@ server {
     proxy_connect_timeout 5s;
     proxy_send_timeout 90s;
     proxy_read_timeout 90s;
+    proxy_request_buffering on;
   }
 
   # Static assets get a long browser cache; CF caches them globally too.
@@ -71,6 +130,9 @@ server {
   # SPA fallback: any unknown path serves the closest matching exported
   # HTML, defaulting to /index.html so client-side routing can pick up.
   location / {
+    # HTML and route documents must revalidate after a deploy. Hashed
+    # /_next/static assets keep their separate immutable 30-day cache.
+    expires -1;
     try_files $uri $uri.html $uri/index.html /index.html;
   }
 }

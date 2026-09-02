@@ -1,13 +1,24 @@
 import type { NextConfig } from "next";
 
+const isDevelopment = process.env.NODE_ENV === "development";
+
 const nextConfig: NextConfig = {
-  // Pre-render every page at build time → produces ./out/ as a tree
-  // of HTML, JS, and CSS that nginx serves verbatim. No Node runtime,
-  // no headers() at request time, no middleware. All identity + data
-  // fetching happens client-side.
-  output: "export",
-  // SPA-style routing fallback inside `out/` is handled by the nginx
-  // config (try_files … /index.html).
+  // Production is a static export served by nginx. Development keeps the
+  // Next.js server so /api requests can proxy to the local Spring Boot container.
+  ...(isDevelopment
+    ? {
+        async rewrites() {
+          const backend = process.env.BACKEND_URL ?? "http://localhost:8000";
+          return [
+            {
+              source: "/api/:path*",
+              destination: `${backend}/api/:path*`,
+            },
+          ];
+        },
+      }
+    : { output: "export" as const }),
+  images: { unoptimized: true },
   trailingSlash: false,
 };
 

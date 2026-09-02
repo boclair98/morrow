@@ -1,0 +1,9 @@
+.gradle
+build
+.venv
+__pycache__
+tests
+alembic
+app
+*.pyc
+.env

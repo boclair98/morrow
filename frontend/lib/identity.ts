@@ -3,24 +3,49 @@
 /**
  * Client-side identity helpers.
  *
- * The platform gate validates the visitor's `coders_session` cookie at
- * the edge and stamps `X-Coders-User` onto every request that reaches
- * the backend. A static SPA can't read that header (it's HTML, not a
- * server), so we discover identity by fetching `/api/me` and looking
- * at the response:
- *    200 → signed in (the gate forwarded the user, the backend echoed
- *          a row out of its own users table)
+ * The browser session is an HttpOnly cookie, so client code intentionally
+ * cannot inspect it. We discover identity by fetching `/api/me`:
+ *    200 → the backend verified the session and returned the local user
  *    401 → anonymous
  */
 
 import { useEffect, useState } from "react";
 
 import { tracked } from "./warming";
+import type { ProfilePhoto } from "./api";
 
 export type Me = {
   id: string;
   coders_id: string;
   display_name: string;
+  age: number | null;
+  gender: string | null;
+  seeking: string | null;
+  area: string | null;
+  job: string | null;
+  bio: string | null;
+  date_style: string | null;
+  interests: string[];
+  availability: string[];
+  min_preferred_age: number;
+  max_preferred_age: number;
+  max_distance_km: number;
+  profile_complete: boolean;
+  account_verified: boolean;
+  verification_status: "unverified" | "pending" | "verified" | "rejected";
+  verified_at: string | null;
+  status: "active" | "suspended" | "banned";
+  suspended_until: string | null;
+  discoverable: boolean;
+  legal_complete: boolean;
+  current_terms_version: string;
+  current_privacy_version: string;
+  notify_matches: boolean;
+  notify_messages: boolean;
+  notify_dates: boolean;
+  marketing_opt_in: boolean;
+  is_admin: boolean;
+  photos: ProfilePhoto[];
   first_seen_at: string;
 };
 
@@ -44,25 +69,4 @@ export function useMe(): MeState {
     };
   }, []);
   return me;
-}
-
-function currentLocation(): string {
-  if (typeof window === "undefined") return "/";
-  return window.location.pathname + window.location.search;
-}
-
-function buildHref(path: string, returnTo?: string): string {
-  const target = returnTo ?? currentLocation();
-  const here =
-    typeof window === "undefined" ? "" : window.location.origin;
-  const absolute = target.startsWith("http") ? target : here + target;
-  return `https://mcp.coders.kr${path}?return_to=${encodeURIComponent(absolute)}`;
-}
-
-export function signInHref(returnTo?: string): string {
-  return buildHref("/sso/login", returnTo);
-}
-
-export function signOutHref(returnTo?: string): string {
-  return buildHref("/sso/logout", returnTo);
 }

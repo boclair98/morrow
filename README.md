@@ -1,177 +1,269 @@
-# template-coders
+<p align="center">
+  <img src="./frontend/public/og.png" alt="MORROW — 좋아요 말고, 약속이 되는 사람" width="100%" />
+</p>
 
-[![Deploy on coders.kr](https://coders.kr/deploy-button.svg)](https://coders.kr/deploy?repo=https://github.com/cykim8811/template-coders)
+<h1 align="center">MORROW</h1>
 
-A small starter app written for the [coders.kr](https://coders.kr)
-platform. Hand a Claude Code session the link to this repo, ask it to
-deploy, and you have a live site that:
+<p align="center">
+  좋아요 수가 아니라 <strong>안전한 대화와 실제 약속의 성사</strong>를 설계하는<br />
+  만 20세 이상 소셜 디스커버리·소개팅 웹 서비스
+</p>
 
-- Lets anyone read a public feed.
-- Lets signed-in visitors post.
-- Maps each coders.kr visitor to a row in this app's own `users`
-  table on first sight, without ever shipping an OAuth flow.
+<p align="center">
+  <a href="https://morrow.coders.kr"><strong>서비스 열기</strong></a>
+  · <a href="./release/LAUNCH_CHECKLIST.md">출시 체크리스트</a>
+  · <a href="./backend/.env.example">환경 변수 예시</a>
+</p>
 
-Use it as a base when you want to write something that lives natively
-on coders.kr rather than retrofitting an existing app.
+> 프로덕션은 가상 회원·가상 매치·가상 메시지를 생성하지 않습니다. 추천과 대화에 표시되는 정보는 실제 가입자가 직접 등록한 데이터만 사용합니다.
 
-## Picking a template
+## 왜 MORROW인가
 
-This repo is a small **catalog of starters, one per branch**. `main` is
-the Basic Full-Stack Web template documented below; every other
-template is a sibling branch with the same platform wiring
-(`coders.yaml`, identity, Dockerfiles) but a different app shape.
-Clone the one that matches what you're building:
+대부분의 소개팅 서비스는 프로필을 계속 넘기게 만드는 데 집중합니다. MORROW는 상호 관심 이후 사용자가 멈추는 지점을 제품의 시작점으로 봅니다.
 
-| Template | Branch | When to use it |
-|---|---|---|
-| **Basic Full-Stack Web** | `main` | CRUD apps, feeds, dashboards — anything request/response. Next.js static SPA + FastAPI + Postgres. |
-| **Game (Realtime)** | `game` | Multiplayer / realtime apps. Adds a WebSocket game loop with rooms, a fullscreen canvas client with reconnect + interpolation, optional sign-in (guests can play), and a persistent leaderboard. |
+1. 서로 관심을 표현한 사람만 연결합니다.
+2. `MORROW Sync`에서 같은 질문에 답하고, 두 답변이 모두 제출된 뒤 동시에 공개합니다.
+3. 연락처를 먼저 공개하지 않고 서비스 안에서 대화·장소·시간을 정합니다.
+4. 약속 전후 안전 확인과 피드백을 신뢰 흐름에 반영합니다.
+5. 차단·신고·사진 검수·계정 제재를 운영 콘솔까지 이어 줍니다.
+
+## 핵심 사용자 흐름
+
+```mermaid
+flowchart LR
+    A[카카오 · 네이버 · 구글 로그인] --> B[약관 · 성인 확인]
+    B --> C[프로필 · 선호 조건 · 가능 시간]
+    C --> D[사진 등록 · 검수]
+    D --> E[설명 가능한 추천]
+    E -->|상호 관심| F[매치]
+    F --> G[MORROW Sync]
+    F --> H[실시간 채팅]
+    G --> H
+    H --> I[카카오 장소 · 시간 제안]
+    I --> J[약속 수락 · 안전 확인 · 피드백]
+```
+
+`MORROW Pulse`는 추천, 첫 대화, 읽지 않은 메시지, 약속 상태를 보고 현재 사용자에게 필요한 다음 행동 하나만 제안합니다. 이 상태 역시 서버의 실제 데이터로만 계산합니다.
+
+## 구현 범위
+
+| 영역 | 사용자 기능 | 서버 보장 |
+| --- | --- | --- |
+| 로그인 | 카카오·네이버·구글 OAuth | `state`, Google PKCE·nonce, 일회성 흐름, 안전한 내부 복귀 경로, 해시 세션 |
+| 온보딩 | 필수 동의, 만 20세 확인, 프로필·관심사·가능 시간 | Bean Validation, 선택지·길이 검증, 동의 버전 기록 |
+| 추천 | 연령·거리·성별·활동 상태 필터, 추천 이유 | 상호 선호 조건, 차단·스와이프·노출 제외, 조회 인덱스 |
+| 사진 | 최대 6장, 순서·공개 범위 | 매직 바이트·크기·SHA-256 검증, 객체 저장소, 검수 전 비공개 |
+| 매칭 | 관심·패스, 상호 관심 매치 | 트랜잭션, 비관적 잠금, 사용자 쌍 유일성 |
+| Sync | 3라운드 아이스브레이커 | 양쪽 제출 전 비공개, 행 잠금, 라운드별 중복 방지 |
+| 채팅 | 메시지·읽음·입력 중·재연결 | WebSocket 인증, DB 선저장, `client_id` 멱등성 |
+| 약속 | 날짜·시간·장소 제안, 수락·거절 | 매치 당사자 권한, URL·좌표·상태 전이 검증 |
+| 안전 | 차단·신고·대화 종료·약속 안전 확인 | 차단 즉시 노출 분리, 신고 큐, 신뢰 피드백 |
+| 운영 | 사진·신고·본인확인 검수, 정지·복구 | 운영자 UUID 검사, 모든 조치 감사 로그 |
+| 계정 | 알림 설정, 노출 중지, 데이터 내보내기, 탈퇴 | 세션·관계·미디어를 포함한 계정 수명주기 |
+
+## 시스템 아키텍처
+
+```mermaid
+flowchart LR
+    U[Mobile / Desktop Browser]
+    EDGE[coders.kr Edge]
+    WEB[Nginx + Next.js static export]
+    API[Kotlin + Spring Boot]
+    DB[(PostgreSQL)]
+    REDIS[(Redis)]
+    MEDIA[(S3-compatible object storage)]
+    OAUTH[Kakao · Naver · Google]
+    BOT[Cloudflare Turnstile]
+    MAP[Kakao Local]
+
+    U -->|HTTPS| EDGE
+    EDGE --> WEB
+    WEB -->|/api · /api/ws| API
+    API --> DB
+    API --> REDIS
+    API --> MEDIA
+    API <--> OAUTH
+    API --> BOT
+    API --> MAP
+```
+
+- Next.js는 정적 결과물만 생성하고 Nginx가 모바일·데스크톱 공용 UI를 전달합니다.
+- Spring Security가 HTTP와 WebSocket의 동일한 세션을 검증합니다.
+- JPA 트랜잭션과 PostgreSQL 제약 조건이 중복 매치·답변·메시지를 최종 방어합니다.
+- Redis는 여러 API 인스턴스가 공유하는 요청 제한 카운터로 사용하며, 장애 시 인스턴스 로컬 제한으로 축소 동작합니다.
+- 사진 원본은 객체 저장소에 두고, 인증된 사진 API가 소유권·차단·검수 상태를 매번 확인합니다.
+- Flyway는 새 데이터베이스를 자동 구성하고, 기존 Alembic 0001~0009 데이터베이스는 baseline 9로 안전하게 인수합니다.
+
+## 기술 스택
+
+| 계층 | 기술 |
+| --- | --- |
+| UI | React 19.2, Next.js 16.2 App Router, TypeScript 5, Tailwind CSS 4, Base UI |
+| API | Kotlin 2.3.21, Spring Boot 4.1.1, Spring MVC, Spring Security, Bean Validation |
+| Data | Spring Data JPA, Hibernate ORM 7, PostgreSQL 16, Flyway |
+| Realtime | Spring WebSocket, DB-backed message history |
+| Traffic | Nginx edge cache, Redis distributed rate limit, HikariCP, stateless HTTP sessions |
+| Media | AWS SDK for Java 2.x S3 client, managed object storage |
+| Runtime | Java 21 bytecode, Java 25 LTS container, Gradle 9.7.1, Docker multi-stage build |
+| Quality | JUnit 6 platform, Spring Boot context test, Kotlin validation tests, ESLint, Next production build |
+
+Kotlin은 Spring Initializr가 Spring Boot 4.1.1과 함께 제공하는 호환 버전을 사용합니다. 애플리케이션 바이트코드는 로컬·CI 호환성을 위해 Java 21로 만들고, 운영 이미지는 Java 25 LTS VM에서 실행합니다.
+
+## API 설계
+
+주요 경로는 기존 React 클라이언트 계약을 유지하므로 서버 전환 뒤에도 UI를 다시 작성할 필요가 없습니다.
+
+```text
+/api/auth/{provider}/start|callback   OAuth 시작·콜백
+/api/me                              내 계정과 프로필
+/api/discover                        추천 목록
+/api/swipes                          관심·패스
+/api/matches/{id}/messages           메시지 이력·전송
+/api/ws/matches/{id}                 매치 실시간 채널
+/api/ws/inbox                        받은편지함 실시간 채널
+/api/matches/{id}/sync               MORROW Sync
+/api/matches/{id}/plans              약속 제안
+/api/places                          카카오 장소 검색
+/api/profile/photos                  프로필 사진
+/api/reports · /api/blocks           신고·차단
+/api/admin/*                         운영 검수
+/api/account/export|delete           내보내기·영구 삭제
+```
+
+오류 응답은 `{ "detail": "사용자에게 보여줄 설명" }` 형식으로 통일합니다. 인증이 필요한 경로는 `401`, 권한 위반은 `403`, 중복 상태는 `409`, 검증 실패는 `422`, 요청 제한은 `429`를 반환합니다.
+
+## 로컬 실행
+
+### 가장 빠른 방법
+
+요구 사항은 Docker Desktop과 Docker Compose입니다.
 
 ```bash
-# Basic (this branch)
-git clone https://github.com/coders-kr/template-coders <name>
-
-# Game
-git clone -b game --single-branch https://github.com/coders-kr/template-coders <name>
+docker compose up --build
 ```
 
-Then `rm -rf .git && git init -b main` and make it yours — a template
-branch is a starting point, not something you track upstream.
+| 서비스 | 주소 |
+| --- | --- |
+| React Web | http://localhost:3000 |
+| Spring API | http://localhost:8000 |
+| PostgreSQL | localhost:5432 |
 
-## What the platform gives you
+`DEV_FAKE_USER`는 로컬 개발 편의를 위한 UUID이며 프로덕션에는 설정하지 않습니다. 가상 추천 데이터가 아니라, 로컬에서 요청 주체만 고정하는 개발용 인증 장치입니다.
 
-When a request reaches this app, the platform has already done four
-things:
-
-1. Validated the visitor's `coders_session` cookie at the edge.
-2. If it was valid, stamped the request with `X-Coders-User: <uuid>`.
-3. If the request was a mutation (POST/PUT/PATCH/DELETE) and the
-   visitor was anonymous, redirected them to the platform sign-in page
-   *before* the request reached you.
-4. Recorded the request against the right metering bucket
-   (anonymous → `ProjectQuota`; signed-in → `UserProjectQuota`).
-
-So inside your code:
-
-- **Trust `X-Coders-User`.** The gate strips any inbound value from the
-  client before forwarding, so a value you see here came from a real,
-  validated session.
-- **Don't build a sign-in flow.** Link to
-  `https://mcp.coders.kr/sso/login?return_to=<your URL>` instead. Sign
-  out is `https://mcp.coders.kr/sso/logout?return_to=…`.
-- **Use POST for anything that needs identity.** The gate auto-gates
-  anonymous mutations — you get a logged-in user every time.
-
-## Code tour
-
-```
-backend/
-  app/
-    core/identity.py    require_identity / optional_identity dependencies
-    routes/users.py     /api/me  — auto-upserts the local row on first sight
-    routes/posts.py     /api/feed (public) + POST /api/posts (auth-required)
-    models.py           User(id, coders_id, display_name) + Post(...)
-frontend/
-  lib/identity.ts       getCodersUser() reads the X-Coders-User header
-  components/SignIn.tsx Sign in/out links that target the platform
-  app/layout.tsx        shows the visitor's display_name once signed in
-  app/page.tsx          feed + inline compose form for signed-in visitors
-  app/profile/page.tsx  the visitor's profile + their posts
-coders.yaml             web + api + postgres; `mode: native`
-```
-
-## Local development
-
-**One command, full hot reload — no platform, no setup:**
+### 개별 실행
 
 ```bash
-docker compose up
+# API — Java 21+
+cd backend
+./gradlew bootRun
+
+# UI — Node.js 22 + pnpm 9
+cd frontend
+pnpm install --frozen-lockfile
+pnpm dev
 ```
 
-Brings up Postgres + the FastAPI backend (`uvicorn --reload`) + the Next.js
-frontend (`next dev`) at **http://localhost:3000**. Edit any file and it's live
-instantly — no rebuild, no deploy. Iterate here; deploy only when you're ready
-to ship. (`/api/*` is proxied to the backend, and Postgres migrations run on
-start.)
+Windows에서는 `./gradlew` 대신 `gradlew.bat`를 사용합니다.
 
-There's no platform gate locally, so every request is treated as a fixed
-signed-in dev user (`DEV_FAKE_USER`, defaulted in `compose.yaml`). To test as a
-different user — or the anonymous path — set `DEV_FAKE_USER` in `backend/.env`
-(copy `backend/.env.example`), or unset it.
+## 환경 변수
 
-Prefer running the services yourself (no Docker)? Point the backend at a local
-Postgres and set the same vars in `backend/.env`:
+전체 예시는 [`backend/.env.example`](./backend/.env.example)에 있습니다. 실제 Secret은 Git에 커밋하지 않고 배포 환경에서 주입합니다.
+
+| 그룹 | 변수 |
+| --- | --- |
+| DB | `DATABASE_URL`, `DATABASE_USER`, `DATABASE_PASSWORD` |
+| 앱 | `PUBLIC_APP_URL`, `AUTH_MODE`, `SESSION_COOKIE_NAME`, `SESSION_DAYS` |
+| OAuth | `KAKAO_*`, `NAVER_*`, `GOOGLE_*` |
+| 봇 방지·지도 | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, `KAKAO_MAP_REST_KEY`, `NEXT_PUBLIC_KAKAO_MAP_JS_KEY` |
+| 트래픽·미디어 | `REDIS_URL`, `STORAGE_*` |
+| 운영 | `ADMIN_CODERS_IDS` |
+
+프로덕션 콜백 주소:
+
+```text
+https://morrow.coders.kr/api/auth/kakao/callback
+https://morrow.coders.kr/api/auth/naver/callback
+https://morrow.coders.kr/api/auth/google/callback
+```
+
+## 품질 검증
 
 ```bash
-# backend/.env
-DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/app
-DEV_FAKE_USER=00000000-0000-0000-0000-000000000001
+# Kotlin API: 컴파일 + 계약 테스트 + 전체 Spring 컨텍스트
+cd backend
+./gradlew test
+./gradlew bootJar
+
+# React UI: 코드 품질 + TypeScript + 정적 페이지 생성
+cd frontend
+pnpm lint
+pnpm build
 ```
 
-## Preview your local app at a real `coders.kr` URL — `dev_up`
+서버 테스트는 프로필 검증, 만 20세 제한, OAuth 오픈 리다이렉트 방지, 세션 SHA-256, Security/JPA/WebSocket/Controller 통합 기동을 확인합니다. 프로덕션 빌드 전 과정에서는 TypeScript 검사와 모든 정적 페이지 생성을 함께 수행합니다.
 
-`docker compose up` is fast but local-only: a fake user, no real platform gate,
-and a URL only you can open. When you want to see your *local, hot-reloading*
-code at a real `https://<name>-dev.coders.kr` — **with no build and no deploy** —
-open a **dev tunnel**. In Claude Code:
+## 보안·트래픽 원칙
 
-```
-dev_up <name>
-```
+- 비밀번호와 OAuth 원문 토큰을 보관하지 않습니다.
+- 세션 토큰은 SHA-256 해시만 저장하고 쿠키는 `HttpOnly`, `Secure`, `SameSite=Lax`로 발급합니다.
+- 쓰기 요청은 실제 서비스 Origin을 확인하고 본문 크기를 제한합니다.
+- 읽기와 쓰기 요청을 분리해 Redis 기반 분당 제한을 적용합니다.
+- 추천과 사진 API는 차단 관계·계정 상태·검수 상태를 서버에서 다시 확인합니다.
+- DB 유일성 제약과 트랜잭션 잠금은 여러 요청이 동시에 도착해도 한 번만 처리되게 합니다.
+- 모든 응답에 요청 ID와 기본 보안 헤더를 추가하며, 상태 API와 Actuator probe를 분리합니다.
 
-It returns an `frpc.toml` and a one-line command. Then, on your machine:
+## 배포
 
-1. Run your app locally on port 3000 (`docker compose up` is fine).
-2. Install [frp](https://github.com/fatedier/frp) (`brew install frpc`) and save
-   the returned config as `frpc.toml`.
-3. `frpc -c frpc.toml`
-4. Open `https://<name>-dev.coders.kr`.
+[`coders.yaml`](./coders.yaml)은 Web, API, PostgreSQL, Redis, 객체 저장소를 하나의 공개 서비스로 선언합니다.
 
-Now every edit on your machine is live at that URL instantly — the bytes are
-served straight from your laptop (HMR/WebSockets included). Unlike pure-local
-dev, requests go through the **real platform gate**: the preview is **private to
-you** (owner-only), the session cookie is stripped, and your real
-`X-Coders-User` is stamped — exactly like production, so you can test identity
-for real. Your live `<name>.coders.kr` site is untouched.
-
-Requires the project to have been `deploy`ed at least once (the tunnel reuses its
-namespace). `dev_down <name>` closes the tunnel (it also auto-closes after a few
-idle hours). Use this for the tight edit→see loop; `deploy` when you're ready to
-ship for real.
-
-## Deploying
-
-This repo ships a [`.mcp.json`](./.mcp.json) that points Claude Code at the
-coders.kr MCP server (`https://mcp.coders.kr/mcp`). The first time you open
-the project, Claude Code asks you to approve the server and walks you through
-a one-time browser sign-in — after that the deploy/manage tools are available
-in the session. (No `claude mcp add` needed.)
-
-Then, in Claude Code:
-
-```
-deploy https://github.com/<you>/<your-fork>
+```text
+frontend/Dockerfile  → Next.js static export → Nginx
+backend/Dockerfile   → Gradle build → non-root Java 25 runtime
 ```
 
-That's it. The platform reads `coders.yaml`, parallel-builds the two
-images, brings up Postgres in your tenant namespace, wires
-`${db.url}` into the backend's env, fronts the whole thing with a
-gate at `<name>.coders.kr`, and returns the URL.
+배포 뒤 다음 경로를 확인합니다.
 
-## Platform policies (read before you ship)
+```text
+GET /api/health/live   프로세스·런타임 확인
+GET /api/health        PostgreSQL 포함 준비 상태
+GET /api/auth/providers OAuth·Turnstile·지도 공개 설정 확인
+```
 
-[**PLATFORM.md**](./PLATFORM.md) documents how the platform treats your app
-at runtime — identity, the cost model, quota pools, cold start, and the
-WebSocket/long-connection rules. **If your app streams or holds connections
-open, read §5 first:** a single open *anonymous* WebSocket drains your
-site's anonymous pool in under an hour, after which all anonymous traffic is
-redirected to sign-in.
+스키마 변경은 `src/main/resources/db/migration`에 순방향 Flyway 파일로 추가합니다. 기존 운영 데이터베이스는 자동 baseline 이후 보존되며, 운영에서 Hibernate 자동 DDL은 사용하지 않습니다.
 
-## Going further
+## 저장소 구조
 
-- Add a `redis` component to `coders.yaml` if you want background jobs.
-- Bump `coders.yaml`'s pool sizes (next-slice feature) once your app
-  has clear cost characteristics.
-- For apps that already have their own login flow and don't want to
-  rewire identity, set `mode: standalone` instead — see
-  [PLATFORM.md](https://github.com/cykim8811/coders-platform/blob/main/PLATFORM.md).
+```text
+.
+├─ backend/
+│  ├─ src/main/kotlin/kr/morrow/api/
+│  │  ├─ config/       # security, traffic safety, WebSocket
+│  │  ├─ domain/       # JPA entities
+│  │  ├─ repository/   # Spring Data repositories
+│  │  ├─ service/      # auth, matching, chat, media, account
+│  │  └─ web/          # REST controllers and DTOs
+│  ├─ src/main/resources/db/migration/
+│  └─ src/test/kotlin/
+├─ frontend/
+│  ├─ app/             # App Router pages and legal pages
+│  ├─ components/      # responsive product UI
+│  ├─ lib/             # typed API and realtime clients
+│  └─ public/          # optimized service imagery
+├─ release/            # launch and load-test assets
+├─ compose.yaml        # local full stack
+└─ coders.yaml         # production manifest
+```
+
+이전 Python/FastAPI 파일과 Alembic 이력은 운영 데이터 호환성을 확인하기 위한 전환 기록으로 남아 있습니다. 현재 Docker 이미지와 실제 API 런타임은 Kotlin/Spring Boot 소스만 빌드합니다.
+
+## 공개 출시 전 마지막 확인
+
+기능 코드가 준비된 것과 무제한 공개 모집이 가능한 것은 다릅니다. 실제 서비스 출시 전에는 아래 운영 조건이 반드시 필요합니다.
+
+- 사업자·개인정보 보호책임자·고객지원 연락처를 약관과 개인정보 처리방침에 반영
+- 실제 계정 2개로 OAuth → 매치 → 채팅 → 약속 → 신고 전체 왕복 테스트
+- 전문 본인·성인 인증 연동 또는 검수 인력과 처리 SLA 확정
+- 신고 대응 담당자, 백업 복구 시험, 장애 알림, 개인정보 삭제 점검
+- 수평 확장 시 WebSocket 인스턴스 간 fan-out 브로커와 푸시 알림 추가
+
+세부 기준은 [`release/LAUNCH_CHECKLIST.md`](./release/LAUNCH_CHECKLIST.md)에서 관리합니다.

@@ -1,0 +1,92 @@
+spring:
+  application:
+    name: morrow-api
+  main:
+    # coders.kr scales to zero and requires a fast port bind. Controllers and
+    # repositories are created on first use; tests explicitly disable this so
+    # the complete graph is still verified before deployment.
+    lazy-initialization: true
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/app}
+    username: ${DATABASE_USER:app}
+    password: ${DATABASE_PASSWORD:app}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+      minimum-idle: 0
+      connection-timeout: 5000
+      validation-timeout: 2000
+      keepalive-time: 30000
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        jdbc.time_zone: UTC
+        order_inserts: true
+        order_updates: true
+        jdbc.batch_size: 50
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 9
+    validate-migration-naming: true
+  data:
+    jpa:
+      repositories:
+        bootstrap-mode: lazy
+    redis:
+      url: ${REDIS_URL:redis://localhost:6379}
+      connect-timeout: 2s
+      timeout: 2s
+      repositories:
+        enabled: false
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+    default-property-inclusion: non_null
+
+server:
+  port: ${PORT:8000}
+  forward-headers-strategy: framework
+  shutdown: graceful
+  compression:
+    enabled: true
+    min-response-size: 1024
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+morrow:
+  public-app-url: ${PUBLIC_APP_URL:https://morrow.coders.kr}
+  auth-mode: ${AUTH_MODE:standalone}
+  session-cookie-name: ${SESSION_COOKIE_NAME:morrow_session}
+  session-days: ${SESSION_DAYS:30}
+  realtime-redis-enabled: ${REALTIME_REDIS_ENABLED:true}
+  dev-fake-user: ${DEV_FAKE_USER:}
+  admin-coders-ids: ${ADMIN_CODERS_IDS:}
+  kakao-client-id: ${KAKAO_CLIENT_ID:}
+  kakao-client-secret: ${KAKAO_CLIENT_SECRET:}
+  kakao-redirect-uri: ${KAKAO_REDIRECT_URI:}
+  naver-client-id: ${NAVER_CLIENT_ID:}
+  naver-client-secret: ${NAVER_CLIENT_SECRET:}
+  naver-redirect-uri: ${NAVER_REDIRECT_URI:}
+  google-client-id: ${GOOGLE_CLIENT_ID:}
+  google-client-secret: ${GOOGLE_CLIENT_SECRET:}
+  google-redirect-uri: ${GOOGLE_REDIRECT_URI:}
+  turnstile-site-key: ${TURNSTILE_SITE_KEY:}
+  turnstile-secret-key: ${TURNSTILE_SECRET_KEY:}
+  kakao-map-rest-key: ${KAKAO_MAP_REST_KEY:}
+  kakao-map-js-key: ${NEXT_PUBLIC_KAKAO_MAP_JS_KEY:}
+  storage-bucket: ${STORAGE_BUCKET:}
+  storage-region: ${STORAGE_REGION:auto}
+  storage-s3-endpoint: ${STORAGE_S3_ENDPOINT:}
+  storage-access-key: ${STORAGE_ACCESS_KEY:}
+  storage-secret-key: ${STORAGE_SECRET_KEY:}
+  storage-public-url: ${STORAGE_PUBLIC_URL:}
