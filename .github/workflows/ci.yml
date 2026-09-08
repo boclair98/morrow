@@ -57,7 +57,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: uv sync --extra dev --frozen
       - run: uv run ruff check app tests
-      - run: uv run pytest -q
+      - run: uv run pytest -q -o asyncio_default_fixture_loop_scope=session -o asyncio_default_test_loop_scope=session
 
   kotlin-backend:
     runs-on: ubuntu-latest
