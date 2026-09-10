@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ArrowUpRight,
   BadgeCheck,
   CalendarDays,
   Check,
@@ -8,7 +9,9 @@ import {
   Clock3,
   Compass,
   Heart,
+  HeartHandshake,
   Home,
+  LockKeyhole,
   MapPin,
   MessageCircle,
   Search,
@@ -62,7 +65,7 @@ function DashboardLoading() {
   );
 }
 
-const navigation = ["추천", "데이트 취향", "이번 주", "3분 Sync", "안전"];
+const navigation = ["추천", "만남 고르기", "MORROW 방식", "3분 Sync", "안전"];
 
 const quickDiscovery = [
   { icon: Clock3, label: "시간 먼저", color: "bg-[#fff0f4] text-[#f03768]" },
@@ -131,6 +134,33 @@ const syncSteps = [
   "동시에 열고 자연스럽게 대화해요",
 ];
 
+const connectionSteps = [
+  {
+    number: "01",
+    title: "원하는 만남을 골라요",
+    body: "동네, 가능한 시간, 좋아하는 데이트 분위기를 먼저 알려주세요.",
+    icon: Compass,
+  },
+  {
+    number: "02",
+    title: "맞는 사람을 천천히 봐요",
+    body: "사진만 넘기지 않고 공통 취향과 대화 속도를 함께 확인해요.",
+    icon: HeartHandshake,
+  },
+  {
+    number: "03",
+    title: "3분 Sync로 시작해요",
+    body: "첫 문장 대신 같은 질문에 답하고, 마음이 맞으면 대화를 열어요.",
+    icon: MessageCircle,
+  },
+  {
+    number: "04",
+    title: "약속을 앱 안에서 잡아요",
+    body: "연락처를 바로 공개하지 않고 가능한 시간과 공개 장소부터 정해요.",
+    icon: CalendarDays,
+  },
+];
+
 export function SaiApp() {
   const me = useMe();
 
@@ -182,9 +212,11 @@ export function SaiApp() {
                   ? "#top"
                   : index === 1
                     ? "#picks"
-                    : index === 4
-                      ? "#safety"
-                      : "#features"
+                    : index === 2
+                      ? "#how"
+                      : index === 4
+                        ? "#safety"
+                        : "#features"
               }
               className={`relative flex h-full shrink-0 items-center ${
                 index === 0
@@ -199,41 +231,79 @@ export function SaiApp() {
       </header>
 
       <section id="top" className="mx-auto max-w-[1180px] px-3 pt-3 sm:px-6 sm:pt-6 lg:px-8">
-        <div className="relative min-h-[440px] overflow-hidden rounded-[22px] bg-[#fff1f4] sm:min-h-[480px] lg:min-h-[520px] lg:rounded-[30px]">
+        <div className="relative min-h-[590px] overflow-hidden rounded-[26px] bg-[#fff1f4] sm:min-h-[620px] lg:min-h-[550px] lg:rounded-[32px]">
           <Image
             src="/images/morrow-campaign-v2.jpg"
             alt="밝은 거리에서 첫 데이트를 시작하는 두 성인의 캠페인 장면"
             fill
             priority
             sizes="(max-width: 1180px) 100vw, 1120px"
-            className="object-cover object-[64%_center] sm:object-center"
+            className="object-cover object-[68%_center] sm:object-center"
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#fff6f7] via-[#fff6f7]/90 to-[#fff6f7]/5 sm:via-[#fff6f7]/72" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#211518]/95 via-[#211518]/30 to-transparent lg:bg-gradient-to-r lg:from-[#fff7f3] lg:via-[#fff7f3]/95 lg:to-[#fff7f3]/5" />
 
-          <div className="relative z-10 flex min-h-[440px] max-w-[255px] flex-col justify-center px-6 py-10 sm:min-h-[480px] sm:max-w-[500px] sm:px-10 lg:min-h-[520px] lg:px-14">
-            <p className="flex items-center gap-1.5 text-[11px] font-black tracking-[0.12em] text-[#ed3261] sm:text-xs">
+          <div className="relative z-10 flex min-h-[590px] max-w-[570px] flex-col justify-end px-6 pb-10 pt-44 text-white sm:min-h-[620px] sm:px-10 sm:pb-12 lg:min-h-[550px] lg:justify-center lg:px-14 lg:pb-0 lg:pt-0 lg:text-[#25191d]">
+            <p className="flex items-center gap-1.5 text-[11px] font-black tracking-[0.16em] text-[#ff9bb0] lg:text-[#ed3261] sm:text-xs">
               <Heart className="size-3.5 fill-current" /> MORROW PICK
             </p>
-            <h1 className="mt-4 text-[35px] font-black leading-[1.08] tracking-[-0.06em] sm:text-[52px] lg:text-[60px]">
-              취향을 고르듯,
+            <h1 className="mt-4 max-w-[520px] text-[37px] font-black leading-[1.08] tracking-[-0.065em] sm:text-[54px] lg:text-[58px]">
+              소개팅은
               <br />
-              내 인연을 발견해요.
+              <span className="text-[#ff9bb0] lg:text-[#ea365d]">약속</span>이 먼저니까.
             </h1>
-            <p className="mt-4 text-[13px] font-semibold leading-6 text-[#745e66] sm:max-w-[420px] sm:text-[16px] sm:leading-7">
-              사진만 넘기지 말고, 시간과 취향이 맞는 사람을 만나보세요.
+            <p className="mt-4 max-w-[410px] text-[13px] font-semibold leading-6 text-white/75 sm:text-[16px] sm:leading-7 lg:text-[#745e66]">
+              사진만 넘기지 말고, 이번 주 시간이 맞는 사람과
+              <br />
+              대화부터 약속까지 자연스럽게 이어가세요.
             </p>
-            <div className="mt-6 w-[190px] sm:w-auto">
-              <SignInLink size="lg" />
+            <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-center">
+              <a
+                href={loginHref}
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#ea365d] px-5 text-sm font-black text-white shadow-[0_12px_28px_rgba(234,54,93,.24)] transition hover:bg-[#d92e53] focus-visible:ring-2 focus-visible:ring-[#ea365d] focus-visible:ring-offset-2 lg:h-12"
+              >
+                내 취향으로 시작하기
+                <ArrowUpRight className="size-4" />
+              </a>
+              <a
+                href="#how"
+                className="inline-flex h-12 items-center justify-center rounded-xl border border-white/30 bg-white/10 px-5 text-sm font-bold text-white backdrop-blur-md transition hover:bg-white/20 lg:border-[#d9cdd0] lg:bg-white/70 lg:text-[#4e3d42] lg:hover:bg-white"
+              >
+                MORROW 방식 보기
+              </a>
             </div>
-            <div className="mt-5 hidden flex-wrap gap-x-4 gap-y-2 text-xs font-bold text-[#79666d] sm:flex">
-              <span className="flex items-center gap-1"><Check className="size-3.5 text-[#ed3261]" />무료 시작</span>
-              <span className="flex items-center gap-1"><Check className="size-3.5 text-[#ed3261]" />시간 우선 추천</span>
-              <span className="flex items-center gap-1"><Check className="size-3.5 text-[#ed3261]" />연락처 비공개</span>
+            <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2 text-[11px] font-bold text-white/75 lg:text-[#79666d] sm:text-xs">
+              <span className="flex items-center gap-1"><Check className="size-3.5 text-[#ff9bb0] lg:text-[#ed3261]" />실제 회원 데이터</span>
+              <span className="flex items-center gap-1"><Check className="size-3.5 text-[#ff9bb0] lg:text-[#ed3261]" />시간 우선 추천</span>
+              <span className="flex items-center gap-1"><Check className="size-3.5 text-[#ff9bb0] lg:text-[#ed3261]" />연락처 비공개</span>
+            </div>
+          </div>
+
+          <div className="absolute right-5 top-5 z-10 hidden flex-col gap-2 sm:flex lg:right-7 lg:top-7">
+            <div className="flex items-center gap-2 rounded-full border border-white/40 bg-white/85 px-3 py-2 text-[11px] font-black text-[#4e3d42] shadow-lg backdrop-blur-md">
+              <Clock3 className="size-3.5 text-[#ea365d]" /> 이번 주 만남 가능
+            </div>
+            <div className="flex items-center gap-2 self-end rounded-full border border-white/40 bg-[#211518]/80 px-3 py-2 text-[11px] font-black text-white shadow-lg backdrop-blur-md">
+              <Sparkles className="size-3.5 text-[#ff9bb0]" /> 3분 Sync
             </div>
           </div>
 
           <div className="absolute bottom-4 right-4 rounded-full bg-black/75 px-3 py-1.5 text-[10px] font-bold text-white backdrop-blur-md sm:bottom-6 sm:right-6">
             서비스 연출 이미지 · 실제 회원 아님
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 divide-x divide-[#efe4e6] border-b border-[#efe4e6] bg-white py-4 sm:py-5">
+          <div className="px-3 text-center sm:px-5">
+            <p className="text-[10px] font-black tracking-[.1em] text-[#ea365d]">DISCOVER</p>
+            <p className="mt-1 text-[11px] font-bold text-[#59494e] sm:text-sm">취향과 시간부터</p>
+          </div>
+          <div className="px-3 text-center sm:px-5">
+            <p className="text-[10px] font-black tracking-[.1em] text-[#ea365d]">CONNECT</p>
+            <p className="mt-1 text-[11px] font-bold text-[#59494e] sm:text-sm">첫 대화를 가볍게</p>
+          </div>
+          <div className="px-3 text-center sm:px-5">
+            <p className="text-[10px] font-black tracking-[.1em] text-[#ea365d]">MEET</p>
+            <p className="mt-1 text-[11px] font-bold text-[#59494e] sm:text-sm">약속까지 안전하게</p>
           </div>
         </div>
       </section>
@@ -242,7 +312,7 @@ export function SaiApp() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-[11px] font-black text-[#f03768]">QUICK DISCOVERY</p>
-            <h2 className="mt-1 text-xl font-black tracking-[-0.04em] sm:text-2xl">오늘 뭐 하고 싶어요?</h2>
+            <h2 className="mt-1 text-xl font-black tracking-[-0.04em] sm:text-2xl">어떤 만남을 원하세요?</h2>
           </div>
           <a href="#picks" className="flex items-center text-xs font-bold text-[#85777c] sm:text-sm">
             전체 보기 <ChevronRight className="size-4" />
@@ -272,9 +342,9 @@ export function SaiApp() {
       <section id="picks" className="mx-auto max-w-[1180px] px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
         <div className="flex items-end justify-between gap-4">
           <div>
-            <p className="text-[11px] font-black tracking-[0.08em] text-[#f03768]">MORROW DATE PICK</p>
-            <h2 className="mt-1 text-[26px] font-black tracking-[-0.05em] sm:text-[34px]">끌리는 데이트부터 골라보세요</h2>
-            <p className="mt-2 text-sm font-medium text-[#89797f]">선택한 취향은 실제 회원 추천에 활용돼요.</p>
+            <p className="text-[11px] font-black tracking-[0.08em] text-[#f03768]">YOUR KIND OF DATE</p>
+            <h2 className="mt-1 text-[26px] font-black tracking-[-0.05em] sm:text-[34px]">끌리는 약속부터 골라보세요</h2>
+            <p className="mt-2 text-sm font-medium text-[#89797f]">선택한 취향은 로그인 후 실제 회원 추천에 활용돼요.</p>
           </div>
           <a href={loginHref} className="hidden items-center text-sm font-bold sm:flex">
             내 취향 시작하기 <ChevronRight className="size-4" />
@@ -307,6 +377,42 @@ export function SaiApp() {
         <p className="mt-6 text-[11px] font-medium leading-5 text-[#a29599]">
           위 사진은 데이트 분위기를 표현한 서비스 이미지입니다. 실제 회원 프로필은 가입 후 실데이터로만 제공됩니다.
         </p>
+      </section>
+
+      <section id="how" className="border-y border-[#f1e4e4] bg-[#fff5f1]">
+        <div className="mx-auto max-w-[1180px] px-4 py-14 sm:px-6 sm:py-20 lg:px-8">
+          <div className="grid gap-8 lg:grid-cols-[.85fr_1.15fr] lg:items-end">
+            <div>
+              <p className="text-[11px] font-black tracking-[.12em] text-[#ea365d]">HOW MORROW WORKS</p>
+              <h2 className="mt-2 max-w-[480px] text-[30px] font-black leading-[1.16] tracking-[-.055em] sm:text-[40px]">
+                소개받고,
+                <br />
+                대화하고,
+                <br />
+                만나기까지 한 흐름으로.
+              </h2>
+              <p className="mt-4 max-w-[430px] text-sm font-medium leading-6 text-[#806d73] sm:text-base">
+                무작정 많이 보여주는 대신 다음 행동 하나가 분명하도록 설계했어요. 회원이 직접 고른 시간과 취향이 매칭의 시작입니다.
+              </p>
+              <a href={loginHref} className="mt-6 inline-flex items-center gap-2 text-sm font-black text-[#ea365d] hover:text-[#c92d4e]">
+                내 만남 조건 입력하기 <ArrowUpRight className="size-4" />
+              </a>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              {connectionSteps.map(({ number, title, body, icon: Icon }) => (
+                <article key={number} className="rounded-[22px] border border-[#f0dedb] bg-white p-5 shadow-[0_12px_35px_rgba(107,58,67,.05)] sm:p-6">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-black tracking-[.12em] text-[#ea365d]">{number}</span>
+                    <span className="grid size-10 place-items-center rounded-[14px] bg-[#fff0f3] text-[#ea365d]"><Icon className="size-5" /></span>
+                  </div>
+                  <h3 className="mt-7 text-lg font-black tracking-[-.035em] sm:text-xl">{title}</h3>
+                  <p className="mt-2 text-sm font-medium leading-6 text-[#847176]">{body}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </div>
       </section>
 
       <section id="features" className="bg-[#faf7f8]">
@@ -364,8 +470,8 @@ export function SaiApp() {
       <section id="safety" className="mx-auto max-w-[1180px] px-4 py-14 sm:px-6 sm:py-20 lg:px-8">
         <div className="grid gap-6 rounded-[24px] bg-[#fff0f4] p-7 sm:p-10 lg:grid-cols-[1fr_auto] lg:items-center lg:p-12">
           <div>
-            <p className="flex items-center gap-2 text-xs font-black text-[#ed3261]"><ShieldCheck className="size-4" /> SAFETY FIRST</p>
-            <h2 className="mt-3 text-[27px] font-black tracking-[-0.045em] sm:text-[36px]">설레기 전에, 먼저 안전하게.</h2>
+            <p className="flex items-center gap-2 text-xs font-black text-[#ed3261]"><LockKeyhole className="size-4" /> TRUST FIRST</p>
+            <h2 className="mt-3 text-[27px] font-black tracking-[-0.045em] sm:text-[36px]">설레기 전에, 먼저 안심할 수 있게.</h2>
             <p className="mt-3 max-w-2xl text-sm font-medium leading-6 text-[#79666d] sm:text-base">
               연락처를 바로 공개하지 않고 앱 안에서 대화해요. 차단과 신고, 공개 장소 약속 제안도 바로 사용할 수 있어요.
             </p>

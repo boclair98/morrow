@@ -17,6 +17,18 @@
 
 > 프로덕션은 가상 회원·가상 매치·가상 메시지를 생성하지 않습니다. 추천과 대화에 표시되는 정보는 실제 가입자가 직접 등록한 데이터만 사용합니다.
 
+## 랜딩 페이지 방향
+
+첫 화면에서 서비스의 약속을 이해하고 바로 시작할 수 있도록, 소개팅 신청형 랜딩의 흐름을 MORROW의 실제 기능에 맞게 구성했습니다.
+
+- 히어로: `약속이 먼저`라는 가치 제안과 취향 입력 CTA
+- 발견: 시간·동네·데이트 분위기 선택 → 로그인 후 실제 회원 추천
+- 과정: 만남 조건 입력 → 추천 → 3분 Sync → 앱 안에서 약속
+- 신뢰: 사진 검수, 연락처 비공개, 차단·신고·공개 장소 약속 안내
+- 반응형: 모바일 360px부터 데스크톱까지 동일한 정보 우선순위와 터치 타깃
+
+랜딩에 사용한 사진은 서비스 분위기를 표현하는 연출 이미지이며, 실제 회원처럼 보이는 이름·수치·후기를 만들지 않습니다. 실제 프로필과 매칭 결과는 로그인·동의·검수 이후 서버의 실데이터로만 표시됩니다.
+
 ## 왜 MORROW인가
 
 대부분의 소개팅 서비스는 프로필을 계속 넘기게 만드는 데 집중합니다. MORROW는 상호 관심 이후 사용자가 멈추는 지점을 제품의 시작점으로 봅니다.
@@ -215,6 +227,14 @@ pnpm build
 ## 배포
 
 [`coders.yaml`](./coders.yaml)은 Web, API, PostgreSQL, Redis, 객체 저장소를 하나의 공개 서비스로 선언합니다.
+
+저장소 기준은 다음과 같습니다.
+
+- canonical upstream: <https://github.com/boclair98/morrow>
+- organization fork: <https://github.com/coders-kr/morrow>
+- Coders.kr deployment source: canonical upstream `main`
+
+조직 저장소는 canonical 저장소의 실제 GitHub fork이며, 업데이트 시 upstream을 먼저 push한 뒤 fork를 동기화합니다.
 
 ```text
 frontend/Dockerfile  → Next.js static export → Nginx
