@@ -29,6 +29,7 @@ class DatingService(
     private val blocks: BlockRepository,
     private val reports: ReportRepository,
     private val impressions: DiscoveryImpressionRepository,
+    private val saved: SavedProfileRepository,
     private val userService: UserService,
     private val notifications: NotificationService,
     private val realtime: RealtimeHub,
@@ -138,6 +139,10 @@ class DatingService(
         val groupedPhotos = if (ids.isEmpty()) emptyMap() else photos
             .findByOwnerIdInAndIsPublicTrueAndModerationStatusOrderByPositionAscCreatedAtAsc(ids, "approved")
             .groupBy { it.ownerId }
+        val savedIds = if (ids.isEmpty()) emptySet() else saved
+            .findByUserIdAndTargetUserIdIn(viewer.id, ids)
+            .map { it.targetUserId }
+            .toSet()
         val exposure = if (ids.isEmpty()) emptyMap() else impressions
             .exposureCounts(ids, Instant.now().minus(Duration.ofDays(7)))
             .associate { row -> row[0] as UUID to (row[1] as Long).toInt() }
@@ -147,7 +152,14 @@ class DatingService(
             else {
                 val candidatePhotos = groupedPhotos[candidate.id].orEmpty()
                 if (photoOnly && candidatePhotos.isEmpty()) null
-                else userCard(candidate, viewer, candidatePhotos, distance, exposure[candidate.id] ?: 0)
+                else userCard(
+                    candidate,
+                    viewer,
+                    candidatePhotos,
+                    distance,
+                    exposure[candidate.id] ?: 0,
+                    saved = candidate.id in savedIds,
+                )
             }
         }.sortedWith(
             compareByDescending<Map<String, Any?>> { (it["common_times"] as List<*>).isNotEmpty() }
@@ -157,6 +169,61 @@ class DatingService(
         val visible = cards.take(limit)
         impressions.saveAll(visible.map { DiscoveryImpressionEntity(viewerId = viewer.id, targetId = UUID.fromString(it["id"] as String)) })
         return mapOf("items" to visible, "has_more" to (cards.size > limit))
+    }
+
+    @Transactional(readOnly = true)
+    fun savedProfiles(userId: UUID, limit: Int): Map<String, Any> {
+        val viewer = users.findById(userId).orElseThrow { ApiException(401, "로그인이 필요해요") }
+        userService.ensureActive(viewer)
+        val rows = saved.findByUserIdOrderByCreatedAtDesc(viewer.id, PageRequest.of(0, limit))
+        if (rows.isEmpty()) return mapOf("items" to emptyList<Map<String, Any?>>())
+
+        val targetIds = rows.map { it.targetUserId }
+        val people = users.findAllById(targetIds).associateBy { it.id }
+        val photoGroups = photos
+            .findByOwnerIdInAndIsPublicTrueAndModerationStatusOrderByPositionAscCreatedAtAsc(targetIds, "approved")
+            .groupBy { it.ownerId }
+        val items = rows.mapNotNull { row ->
+            val target = people[row.targetUserId] ?: return@mapNotNull null
+            if (!target.profileComplete || target.status != "active" || !target.discoverable || !userService.legalComplete(target)) return@mapNotNull null
+            if (blocks.existsByBlockerIdAndBlockedId(viewer.id, target.id) || blocks.existsByBlockerIdAndBlockedId(target.id, viewer.id)) return@mapNotNull null
+            userCard(target, viewer, photoGroups[target.id].orEmpty(), saved = true)
+        }
+        return mapOf("items" to items)
+    }
+
+    @Transactional
+    fun saveProfileForLater(userId: UUID, targetId: UUID): Map<String, Any> {
+        val viewer = userService.current(userId)
+        val target = savableTarget(viewer, targetId)
+        if (saved.existsByUserIdAndTargetUserId(viewer.id, target.id)) {
+            return mapOf("status" to "saved", "saved" to true)
+        }
+        if (saved.countByUserId(viewer.id) >= 50) {
+            throw ApiException(429, "저장한 프로필이 많아요. 오래된 저장을 정리해 주세요")
+        }
+        // PostgreSQL handles a pair of simultaneous taps atomically.
+        saved.insertIfAbsent(UUID.randomUUID(), viewer.id, target.id)
+        return mapOf("status" to "saved", "saved" to true)
+    }
+
+    @Transactional
+    fun removeSavedProfile(userId: UUID, targetId: UUID): Map<String, Any> {
+        userService.current(userId)
+        val removed = saved.deleteByUserIdAndTargetUserId(userId, targetId) > 0
+        return mapOf("status" to "removed", "saved" to false, "removed" to removed)
+    }
+
+    private fun savableTarget(viewer: UserEntity, targetId: UUID): UserEntity {
+        if (targetId == viewer.id) throw ApiException(400, "내 프로필은 저장할 수 없어요")
+        val target = users.findById(targetId).orElseThrow { ApiException(404, "프로필을 찾지 못했어요") }
+        if (!target.profileComplete || target.status != "active" || !target.discoverable || !userService.legalComplete(target)) {
+            throw ApiException(404, "프로필을 찾지 못했어요")
+        }
+        if (blocks.existsByBlockerIdAndBlockedId(viewer.id, target.id) || blocks.existsByBlockerIdAndBlockedId(target.id, viewer.id)) {
+            throw ApiException(404, "프로필을 찾지 못했어요")
+        }
+        return target
     }
 
     @Transactional
@@ -216,12 +283,16 @@ class DatingService(
         val photoGroups = if (otherIds.isEmpty()) emptyMap() else photos
             .findByOwnerIdInAndIsPublicTrueAndModerationStatusOrderByPositionAscCreatedAtAsc(otherIds, "approved")
             .groupBy { it.ownerId }
+        val savedIds = if (otherIds.isEmpty()) emptySet() else saved
+            .findByUserIdAndTargetUserIdIn(user.id, otherIds)
+            .map { it.targetUserId }
+            .toSet()
         val items = rows.mapNotNull { match ->
             val otherId = if (match.userAId == user.id) match.userBId else match.userAId
             val other = people[otherId] ?: return@mapNotNull null
             val last = messages.findFirstByMatchIdOrderByCreatedAtDesc(match.id)
             linkedMapOf(
-                "id" to match.id.toString(), "person" to userCard(other, user, photoGroups[other.id].orEmpty()),
+                "id" to match.id.toString(), "person" to userCard(other, user, photoGroups[other.id].orEmpty(), saved = other.id in savedIds),
                 "matched_at" to match.matchedAt, "last_message" to last?.body,
                 "last_message_at" to last?.createdAt,
                 "unread_count" to messages.countByMatchIdAndSenderIdNotAndReadAtIsNull(match.id, user.id),
@@ -434,6 +505,7 @@ class DatingService(
         profilePhotos: List<ProfilePhotoEntity>,
         distance: Double? = distanceKm(viewer, user),
         recentExposure: Int = 0,
+        saved: Boolean = false,
     ): Map<String, Any?> {
         val commonInterests = user.interests.intersect(viewer.interests.toSet()).sorted()
         val commonTimes = viewer.availability.filter { it in user.availability }
@@ -453,6 +525,7 @@ class DatingService(
             "common_interests" to commonInterests, "common_times" to commonTimes,
             "compatibility" to score, "discovery_score" to discoveryScore,
             "distance_km" to distance?.let { round(it * 10) / 10 }, "match_reasons" to reasons,
+            "saved" to saved,
             "photos" to profilePhotos.filter { it.isPublic }.map { mapOf("id" to it.id.toString(), "url" to "/api/photos/${it.id}", "content_type" to it.contentType, "position" to it.position) },
             "photo_count" to profilePhotos.count { it.isPublic },
             "photo_prompt" to if (profilePhotos.isNotEmpty()) "사진을 올린 프로필" else "사진 없이도 취향을 먼저 확인해요",

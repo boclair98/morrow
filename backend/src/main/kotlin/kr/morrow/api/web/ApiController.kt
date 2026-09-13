@@ -13,6 +13,7 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.security.core.Authentication
 import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -68,6 +69,20 @@ class ApiController(
         @RequestParam(required = false) @Size(max = 32) interest: String?,
         @RequestParam(defaultValue = "false") photoOnly: Boolean,
     ) = dating.discover(identity.requirePrincipal(authentication).userId, limit, area, minAge, maxAge, availability, interest, photoOnly)
+
+    @GetMapping("/api/saved-profiles")
+    fun savedProfiles(
+        authentication: Authentication?,
+        @RequestParam(defaultValue = "50") @Min(1) @Max(50) limit: Int,
+    ) = dating.savedProfiles(identity.requirePrincipal(authentication).userId, limit)
+
+    @PostMapping("/api/saved-profiles/{targetId}")
+    fun saveProfileForLater(authentication: Authentication?, @PathVariable targetId: UUID) =
+        dating.saveProfileForLater(identity.requirePrincipal(authentication).userId, targetId)
+
+    @DeleteMapping("/api/saved-profiles/{targetId}")
+    fun removeSavedProfile(authentication: Authentication?, @PathVariable targetId: UUID) =
+        dating.removeSavedProfile(identity.requirePrincipal(authentication).userId, targetId)
 
     @PostMapping("/api/swipes")
     fun swipe(authentication: Authentication?, @Valid @RequestBody body: SwipeRequest) =

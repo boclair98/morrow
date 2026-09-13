@@ -161,6 +161,29 @@ interface DiscoveryImpressionRepository : JpaRepository<DiscoveryImpressionEntit
     fun exposureCounts(@Param("targetIds") targetIds: Collection<UUID>, @Param("after") after: Instant): List<Array<Any>>
 }
 
+interface SavedProfileRepository : JpaRepository<SavedProfileEntity, UUID> {
+    fun findByUserIdOrderByCreatedAtDesc(userId: UUID, pageable: Pageable): List<SavedProfileEntity>
+    fun findByUserIdAndTargetUserIdIn(userId: UUID, targetUserIds: Collection<UUID>): List<SavedProfileEntity>
+    fun existsByUserIdAndTargetUserId(userId: UUID, targetUserId: UUID): Boolean
+    fun countByUserId(userId: UUID): Long
+    fun deleteByUserIdAndTargetUserId(userId: UUID, targetUserId: UUID): Long
+
+    @Modifying
+    @Query(
+        value = """
+            insert into saved_profiles (id, user_id, target_user_id, created_at)
+            values (:id, :userId, :targetUserId, now())
+            on conflict (user_id, target_user_id) do nothing
+        """,
+        nativeQuery = true,
+    )
+    fun insertIfAbsent(
+        @Param("id") id: UUID,
+        @Param("userId") userId: UUID,
+        @Param("targetUserId") targetUserId: UUID,
+    ): Int
+}
+
 interface DateFeedbackRepository : JpaRepository<DateFeedbackEntity, UUID> {
     fun existsByPlanIdAndReviewerId(planId: UUID, reviewerId: UUID): Boolean
     fun findByReviewerId(reviewerId: UUID): List<DateFeedbackEntity>

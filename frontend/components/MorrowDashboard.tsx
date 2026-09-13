@@ -3,6 +3,7 @@
 import {
   ArrowLeft,
   Bell,
+  Bookmark,
   CalendarDays,
   Check,
   ChevronLeft,
@@ -45,6 +46,7 @@ import {
   closeMatch,
   DiscoverProfile,
   fetchDiscover,
+  fetchSavedProfiles,
   fetchMatches,
   fetchDatePlans,
   fetchMessages,
@@ -70,11 +72,13 @@ import {
   NotificationItem,
   readAllNotifications,
   readNotification,
+  removeSavedProfile,
+  saveProfileForLater,
   type KakaoPlace,
 } from "@/lib/api";
 import { Me } from "@/lib/identity";
 
-type Tab = "discover" | "matches" | "activity" | "profile" | "safety";
+type Tab = "discover" | "matches" | "activity" | "profile" | "safety" | "saved";
 const interests = [
   "카페",
   "전시",
@@ -281,11 +285,14 @@ export function MorrowDashboard({ me }: { me: Me }) {
   const [selectedMatchView, setSelectedMatchView] = useState<DrawerView>("chat");
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [notificationsLoading, setNotificationsLoading] = useState(true);
+  const [savedProfiles, setSavedProfiles] = useState<DiscoverProfile[]>([]);
+  const [savedLoading, setSavedLoading] = useState(false);
   const [filters, setFilters] = useState<DiscoverFilters>({});
   const [hasMoreProfiles, setHasMoreProfiles] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [feedTab, setFeedTab] = useState("전체");
   const discoverAbortRef = useRef<AbortController | null>(null);
+  const savedBusyRef = useRef(new Set<string>());
   const current = profiles[0];
 
   const loadProfiles = useCallback(async () => {
@@ -335,9 +342,27 @@ export function MorrowDashboard({ me }: { me: Me }) {
       setNotificationsLoading(false);
     }
   }, [me.legal_complete, me.profile_complete, me.status]);
+  const loadSavedProfiles = useCallback(async () => {
+    if (!me.profile_complete || !me.legal_complete || me.status !== "active")
+      return;
+    setSavedLoading(true);
+    try {
+      setSavedProfiles((await fetchSavedProfiles()).items);
+    } catch (error) {
+      setNotice(
+        error instanceof Error ? error.message : "저장한 프로필을 불러오지 못했어요",
+      );
+    } finally {
+      setSavedLoading(false);
+    }
+  }, [me.legal_complete, me.profile_complete, me.status]);
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      void Promise.all([loadProfiles(), loadMatches(), loadNotifications()]);
+      void Promise.all([
+        loadProfiles(),
+        loadMatches(),
+        loadNotifications(),
+      ]);
     }, 0);
     return () => {
       window.clearTimeout(timer);
@@ -425,6 +450,41 @@ export function MorrowDashboard({ me }: { me: Me }) {
 
   async function decide(decision: "like" | "pass") {
     if (current) await decideProfile(current, decision);
+  }
+
+  async function toggleSavedProfile(profile: DiscoverProfile) {
+    if (savedBusyRef.current.has(profile.id)) return;
+    savedBusyRef.current.add(profile.id);
+    const nextSaved = profile.saved !== true;
+    const previousProfiles = profiles;
+    const previousSavedProfiles = savedProfiles;
+    const withSavedState = { ...profile, saved: nextSaved };
+    setProfiles((items) =>
+      items.map((item) => (item.id === profile.id ? withSavedState : item)),
+    );
+    setSavedProfiles((items) =>
+      nextSaved
+        ? [
+            withSavedState,
+            ...items.filter((item) => item.id !== profile.id),
+          ]
+        : items.filter((item) => item.id !== profile.id),
+    );
+    try {
+      if (nextSaved) await saveProfileForLater(profile.id);
+      else await removeSavedProfile(profile.id);
+      setNotice(
+        nextSaved
+          ? "나중에 다시 볼 프로필에 저장했어요"
+          : "저장한 프로필에서 삭제했어요",
+      );
+    } catch (error) {
+      setProfiles(previousProfiles);
+      setSavedProfiles(previousSavedProfiles);
+      setNotice(error instanceof Error ? error.message : "저장 상태를 바꾸지 못했어요");
+    } finally {
+      savedBusyRef.current.delete(profile.id);
+    }
   }
 
   function selectFeedTab(tab: string) {
@@ -521,6 +581,16 @@ export function MorrowDashboard({ me }: { me: Me }) {
               >
                 매치
               </NavButton>
+              <NavButton
+                active={tab === "saved"}
+                onClick={() => {
+                  setTab("saved");
+                  void loadSavedProfiles();
+                }}
+                icon={Bookmark}
+              >
+                저장
+              </NavButton>
               <span className="relative">
                 <NavButton
                   active={tab === "activity"}
@@ -611,8 +681,33 @@ export function MorrowDashboard({ me }: { me: Me }) {
             }}
             onLike={(profile) => decideProfile(profile, "like")}
             onPass={(profile) => decideProfile(profile, "pass")}
+            savedCount={savedProfiles.length}
+            onSaved={() => {
+              setTab("saved");
+              void loadSavedProfiles();
+            }}
+            onSave={(profile) => void toggleSavedProfile(profile)}
             onSafety={(profile) =>
               setProfiles((items) =>
+                items.filter((item) => item.id !== profile.id),
+              )
+            }
+          />
+        )}
+        {tab === "saved" && (
+          <SavedProfilesView
+            profiles={savedProfiles}
+            loading={savedLoading}
+            onBack={() => setTab("discover")}
+            onOpenDiscover={() => {
+              setTab("discover");
+              void loadProfiles();
+            }}
+            onLike={(profile) => decideProfile(profile, "like")}
+            onPass={(profile) => decideProfile(profile, "pass")}
+            onSave={(profile) => void toggleSavedProfile(profile)}
+            onSafety={(profile) =>
+              setSavedProfiles((items) =>
                 items.filter((item) => item.id !== profile.id),
               )
             }
@@ -923,6 +1018,9 @@ function DiscoverFeed({
   onLike,
   onPass,
   onSafety,
+  savedCount,
+  onSaved,
+  onSave,
 }: {
   profiles: DiscoverProfile[];
   loading: boolean;
@@ -937,13 +1035,16 @@ function DiscoverFeed({
   onLike: (profile: DiscoverProfile) => void;
   onPass: (profile: DiscoverProfile) => void;
   onSafety: (profile: DiscoverProfile) => void;
+  savedCount: number;
+  onSaved: () => void;
+  onSave: (profile: DiscoverProfile) => void;
 }) {
   const [preview, setPreview] = useState<DiscoverProfile | null>(null);
   const closePreview = useCallback(() => setPreview(null), []);
   const featured = profiles[0];
   return (
     <section className="mx-auto max-w-[1280px]">
-      <div className="mb-5 flex items-end justify-between gap-4">
+      <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-black tracking-[.1em] text-[#ea365d]">TODAY&apos;S CONNECTION</p>
           <h1 className="mt-1 text-[28px] font-extrabold tracking-[-0.035em] sm:text-[34px]">
@@ -953,13 +1054,22 @@ function DiscoverFeed({
             이번 주 시간과 생활권이 맞는 실제 회원부터 보여드려요.
           </p>
         </div>
-        <button
-          onClick={onRefresh}
-          className="flex h-10 shrink-0 items-center gap-2 rounded-full border border-[#e5d8d5] bg-white px-4 text-xs font-bold hover:border-[#21191b]"
-        >
-          <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
-          새로고침
-        </button>
+        <div className="flex w-full justify-end gap-2 sm:w-auto">
+          <button
+            onClick={onSaved}
+            className="flex min-h-11 items-center gap-2 rounded-full border border-[#e5d8d5] bg-white px-3.5 text-xs font-bold hover:border-[#21191b]"
+          >
+            <Bookmark className="size-3.5" />
+            저장{savedCount > 0 ? ` ${savedCount}` : ""}
+          </button>
+          <button
+            onClick={onRefresh}
+            className="flex min-h-11 items-center gap-2 rounded-full border border-[#e5d8d5] bg-white px-3.5 text-xs font-bold hover:border-[#21191b]"
+          >
+            <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
+            새로고침
+          </button>
+        </div>
       </div>
 
       <nav className="grid grid-cols-3 gap-px overflow-hidden rounded-2xl border border-[#eee5e3] bg-[#eee5e3] lg:grid-cols-6">
@@ -1100,6 +1210,7 @@ function DiscoverFeed({
               onOpen={() => setPreview(profile)}
               onLike={() => onLike(profile)}
               onPass={() => onPass(profile)}
+              onSave={() => onSave(profile)}
               onSafety={() => onSafety(profile)}
             />
           ))}
@@ -1119,6 +1230,122 @@ function DiscoverFeed({
             onPass(preview);
             closePreview();
           }}
+          onSave={() => {
+            onSave(preview);
+            closePreview();
+          }}
+        />
+      ) : null}
+    </section>
+  );
+}
+
+function SavedProfilesView({
+  profiles,
+  loading,
+  onBack,
+  onOpenDiscover,
+  onLike,
+  onPass,
+  onSave,
+  onSafety,
+}: {
+  profiles: DiscoverProfile[];
+  loading: boolean;
+  onBack: () => void;
+  onOpenDiscover: () => void;
+  onLike: (profile: DiscoverProfile) => void;
+  onPass: (profile: DiscoverProfile) => void;
+  onSave: (profile: DiscoverProfile) => void;
+  onSafety: (profile: DiscoverProfile) => void;
+}) {
+  const [preview, setPreview] = useState<DiscoverProfile | null>(null);
+  const closePreview = useCallback(() => setPreview(null), []);
+
+  return (
+    <section className="mx-auto max-w-[1280px]">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <button
+            type="button"
+            onClick={onBack}
+            className="mb-4 inline-flex min-h-11 items-center gap-1.5 text-xs font-extrabold text-[#8b7776] transition hover:text-[#21191b]"
+          >
+            <ArrowLeft className="size-4" /> 추천으로 돌아가기
+          </button>
+          <p className="text-xs font-black tracking-[.1em] text-[#ea365d]">
+            YOUR SHORTLIST
+          </p>
+          <h1 className="mt-1 text-[28px] font-extrabold tracking-[-0.035em] sm:text-[34px]">
+            나중에 다시 볼 사람
+          </h1>
+          <p className="mt-2 max-w-xl text-sm font-medium leading-6 text-[#806f72]">
+            마음이 급하지 않아도 괜찮아요. 저장한 프로필은 무료로 보관되고,
+            준비됐을 때 다시 대화를 시작할 수 있어요.
+          </p>
+        </div>
+        <div className="rounded-full bg-[#fff0f3] px-3.5 py-2 text-xs font-black text-[#d9234b]">
+          {profiles.length}명 저장됨
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="grid place-items-center rounded-[24px] border border-[#eee5e3] bg-white py-20 text-sm font-bold text-[#777]">
+          저장한 프로필을 불러오는 중이에요…
+        </div>
+      ) : profiles.length ? (
+        <div className="grid grid-cols-2 gap-x-3 gap-y-9 sm:grid-cols-3 sm:gap-x-4 lg:grid-cols-4">
+          {profiles.map((profile, index) => (
+            <FeedProfileCard
+              key={profile.id}
+              profile={profile}
+              rank={index + 1}
+              onOpen={() => setPreview(profile)}
+              onLike={() => onLike(profile)}
+              onPass={() => {
+                onPass(profile);
+                onSave(profile);
+              }}
+              onSave={() => onSave(profile)}
+              onSafety={() => onSafety(profile)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-[24px] border border-dashed border-[#ddd1ce] bg-white p-12 text-center">
+          <Bookmark className="mx-auto size-9 text-[#c6b5b2]" />
+          <h2 className="mt-4 text-xl font-black">아직 저장한 프로필이 없어요</h2>
+          <p className="mx-auto mt-2 max-w-md text-sm font-medium leading-6 text-[#777]">
+            추천을 둘러보다가 조금 더 알아보고 싶은 사람을 저장해보세요.
+            결제 없이 최대 50명까지 보관할 수 있어요.
+          </p>
+          <button
+            type="button"
+            onClick={onOpenDiscover}
+            className="mt-6 min-h-11 rounded-full bg-[#21191b] px-5 text-sm font-extrabold text-white"
+          >
+            오늘의 추천 보기
+          </button>
+        </div>
+      )}
+
+      {preview ? (
+        <ProfilePreview
+          profile={preview}
+          onClose={closePreview}
+          onLike={() => {
+            onLike(preview);
+            closePreview();
+          }}
+          onPass={() => {
+            onPass(preview);
+            onSave(preview);
+            closePreview();
+          }}
+          onSave={() => {
+            onSave(preview);
+            closePreview();
+          }}
         />
       ) : null}
     </section>
@@ -1131,6 +1358,7 @@ function FeedProfileCard({
   onOpen,
   onLike,
   onPass,
+  onSave,
   onSafety,
 }: {
   profile: DiscoverProfile;
@@ -1138,6 +1366,7 @@ function FeedProfileCard({
   onOpen: () => void;
   onLike: () => void;
   onPass: () => void;
+  onSave: () => void;
   onSafety: () => void;
 }) {
   const [failed, setFailed] = useState(false);
@@ -1189,10 +1418,23 @@ function FeedProfileCard({
         </span>
         <button
           onClick={() => setMenu((open) => !open)}
-          className="absolute right-3 top-3 z-30 grid size-8 place-items-center rounded-full bg-white/90 shadow-sm backdrop-blur-md"
+          className="absolute right-3 top-3 z-30 grid size-10 place-items-center rounded-full bg-white/90 shadow-sm backdrop-blur-md"
           aria-label={`${profile.display_name} 프로필 안전 메뉴`}
         >
           <MoreHorizontal className="size-4" />
+        </button>
+        <button
+          type="button"
+          onClick={onSave}
+          className="absolute right-14 top-3 z-30 grid size-10 place-items-center rounded-full bg-white/90 text-[#302326] shadow-sm backdrop-blur-md transition hover:scale-105"
+          aria-label={
+            profile.saved
+              ? `${profile.display_name}님 저장 해제`
+              : `${profile.display_name}님 저장`
+          }
+          aria-pressed={profile.saved}
+        >
+          <Bookmark className={`size-4 ${profile.saved ? "fill-current" : ""}`} />
         </button>
         {menu ? (
           <div className="absolute right-2 top-12 z-40 w-40 overflow-hidden rounded-lg bg-white py-1 text-xs font-bold text-[#333] shadow-xl">
@@ -1299,11 +1541,13 @@ function ProfilePreview({
   onClose,
   onLike,
   onPass,
+  onSave,
 }: {
   profile: DiscoverProfile;
   onClose: () => void;
   onLike: () => void;
   onPass: () => void;
+  onSave: () => void;
 }) {
   const [photoIndex, setPhotoIndex] = useState(0);
   const [failed, setFailed] = useState(false);
@@ -1428,6 +1672,19 @@ function ProfilePreview({
                 <ShieldCheck className="mr-1 inline size-3.5" />
                 {profile.account_verified ? "본인 확인" : "계정 확인"}
               </span>
+              <button
+                type="button"
+                onClick={onSave}
+                className="ml-auto grid min-h-11 min-w-11 place-items-center rounded-full border border-[#e1d8d5] bg-white text-[#33272a] shadow-sm transition hover:border-[#21191b]"
+                aria-label={
+                  profile.saved
+                    ? `${profile.display_name}님 저장 해제`
+                    : `${profile.display_name}님 저장`
+                }
+                aria-pressed={profile.saved}
+              >
+                <Bookmark className={`size-4 ${profile.saved ? "fill-current" : ""}`} />
+              </button>
             </div>
             <h2
               id={`profile-preview-${profile.id}`}

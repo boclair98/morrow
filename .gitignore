@@ -4,6 +4,7 @@ node_modules
 frontend/out/
 backend/.gradle/
 backend/build/
+backend/.kotlin/
 __pycache__
 *.pyc
 .venv

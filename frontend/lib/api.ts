@@ -61,6 +61,7 @@ export type DiscoverProfile = {
   photo_count: number;
   photo_prompt: string;
   account_verified: boolean;
+  saved: boolean;
   distance_km: number | null;
   match_reasons: string[];
 };
@@ -329,6 +330,17 @@ export const fetchDiscover = (
     { signal },
   );
 };
+export const fetchSavedProfiles = () =>
+  api<{ items: DiscoverProfile[] }>("/api/saved-profiles?limit=50");
+export const saveProfileForLater = (targetId: string) =>
+  api<{ status: string; saved: boolean }>(`/api/saved-profiles/${targetId}`, {
+    method: "POST",
+  });
+export const removeSavedProfile = (targetId: string) =>
+  api<{ status: string; saved: boolean; removed: boolean }>(
+    `/api/saved-profiles/${targetId}`,
+    { method: "DELETE" },
+  );
 export const sendSwipe = (targetId: string, decision: "like" | "pass") =>
   api<{ matched: boolean; match_id?: string; person?: string }>("/api/swipes", {
     method: "POST", body: JSON.stringify({ target_id: targetId, decision }),

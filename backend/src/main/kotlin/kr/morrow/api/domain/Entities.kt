@@ -4,6 +4,7 @@ import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.Id
 import jakarta.persistence.Table
+import jakarta.persistence.UniqueConstraint
 import org.hibernate.annotations.CreationTimestamp
 import org.hibernate.annotations.JdbcTypeCode
 import org.hibernate.annotations.UpdateTimestamp
@@ -236,6 +237,23 @@ class DiscoveryImpressionEntity(
     @Column(name = "viewer_id", nullable = false) var viewerId: UUID = UUID.randomUUID(),
     @Column(name = "target_id", nullable = false) var targetId: UUID = UUID.randomUUID(),
     @CreationTimestamp @Column(name = "shown_at") var shownAt: Instant = Instant.now(),
+)
+
+@Entity
+@Table(
+    name = "saved_profiles",
+    uniqueConstraints = [
+        UniqueConstraint(
+            name = "uq_saved_profiles_user_target",
+            columnNames = ["user_id", "target_user_id"],
+        ),
+    ],
+)
+class SavedProfileEntity(
+    @Id var id: UUID = UUID.randomUUID(),
+    @Column(name = "user_id", nullable = false) var userId: UUID = UUID.randomUUID(),
+    @Column(name = "target_user_id", nullable = false) var targetUserId: UUID = UUID.randomUUID(),
+    @CreationTimestamp @Column(name = "created_at", updatable = false) var createdAt: Instant = Instant.now(),
 )
 
 @Entity
