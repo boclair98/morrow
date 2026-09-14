@@ -153,7 +153,7 @@ class MediaStorage(private val properties: MorrowProperties) {
     }
 
     fun put(key: String, content: ByteArray, contentType: String) {
-        if (!key.startsWith("profile/")) throw IllegalArgumentException("unsupported media key")
+        if (!key.startsWith("profile/") && !key.startsWith("chat/")) throw IllegalArgumentException("unsupported media key")
         val request = PutObjectRequest.builder().bucket(properties.storageBucket).key(key)
             .contentType(contentType).cacheControl("private, max-age=3600").build()
         client?.putObject(request, RequestBody.fromBytes(content))
@@ -161,7 +161,7 @@ class MediaStorage(private val properties: MorrowProperties) {
     }
 
     fun fetch(key: String): ByteArray {
-        if (!configured || !key.startsWith("profile/")) throw ApiException(404, "사진을 찾지 못했어요")
+        if (!configured || (!key.startsWith("profile/") && !key.startsWith("chat/"))) throw ApiException(404, "사진을 찾지 못했어요")
         val connection = URI("${properties.storagePublicUrl.trimEnd('/')}/$key").toURL().openConnection()
         connection.connectTimeout = 5_000
         connection.readTimeout = 8_000
@@ -171,9 +171,10 @@ class MediaStorage(private val properties: MorrowProperties) {
     }
 
     fun delete(key: String?) {
-        if (!configured || key.isNullOrBlank() || !key.startsWith("profile/")) return
+        if (!configured || key.isNullOrBlank() || (!key.startsWith("profile/") && !key.startsWith("chat/"))) return
         runCatching {
             client?.deleteObject(DeleteObjectRequest.builder().bucket(properties.storageBucket).key(key).build())
         }
     }
 }
+
