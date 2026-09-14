@@ -194,6 +194,39 @@ class DatingService(
         return mapOf("items" to items)
     }
 
+    /**
+     * A low-friction return loop: show people who already expressed interest,
+     * without revealing blocked, inactive, incomplete, or no-longer-compatible
+     * accounts.  The endpoint deliberately returns the same explainable card
+     * shape as discovery so the UI can reuse the same safety language.
+     */
+    @Transactional(readOnly = true)
+    fun receivedLikes(userId: UUID, limit: Int): Map<String, Any> {
+        val viewer = userService.current(userId)
+        val safeLimit = limit.coerceIn(1, 30)
+        val rows = swipes.findReceivedLikes(viewer.id, PageRequest.of(0, safeLimit + 1))
+        if (rows.isEmpty()) return mapOf("items" to emptyList<Map<String, Any?>>(), "has_more" to false)
+
+        val senderIds = rows.map { it.swiperId }.distinct()
+        val people = users.findAllById(senderIds).associateBy { it.id }
+        val photoGroups = photos
+            .findByOwnerIdInAndIsPublicTrueAndModerationStatusOrderByPositionAscCreatedAtAsc(senderIds, "approved")
+            .groupBy { it.ownerId }
+        val savedIds = saved.findByUserIdAndTargetUserIdIn(viewer.id, senderIds)
+            .map { it.targetUserId }
+            .toSet()
+        val items = rows.mapNotNull { row ->
+            val sender = people[row.swiperId] ?: return@mapNotNull null
+            if (!sender.profileComplete || sender.status != "active" || !sender.discoverable || !userService.legalComplete(sender)) return@mapNotNull null
+            if (!mutuallyEligible(viewer, sender)) return@mapNotNull null
+            linkedMapOf<String, Any?>().apply {
+                putAll(userCard(sender, viewer, photoGroups[sender.id].orEmpty(), saved = sender.id in savedIds))
+                put("liked_at", row.createdAt)
+            }
+        }
+        return mapOf("items" to items.take(safeLimit), "has_more" to (items.size > safeLimit))
+    }
+
     @Transactional
     fun saveProfileForLater(userId: UUID, targetId: UUID): Map<String, Any> {
         val viewer = userService.current(userId)
@@ -228,6 +261,21 @@ class DatingService(
         return target
     }
 
+    private fun mutuallyEligible(viewer: UserEntity, candidate: UserEntity): Boolean {
+        val viewerAge = viewer.age ?: return false
+        val viewerGender = viewer.gender ?: return false
+        val viewerSeeking = viewer.seeking ?: return false
+        val candidateAge = candidate.age ?: return false
+        val candidateGender = candidate.gender ?: return false
+        val seekingMatches = (viewerSeeking == "all" || candidateGender == viewerSeeking) &&
+            (candidate.seeking == "all" || candidate.seeking == viewerGender)
+        val ageMatches = candidateAge in viewer.minPreferredAge..viewer.maxPreferredAge &&
+            viewerAge in candidate.minPreferredAge..candidate.maxPreferredAge
+        val distance = distanceKm(viewer, candidate)
+        val distanceMatches = distance == null || (distance <= viewer.maxDistanceKm && distance <= candidate.maxDistanceKm)
+        return seekingMatches && ageMatches && distanceMatches
+    }
+
     @Transactional
     fun swipe(userId: UUID, request: SwipeRequest): Map<String, Any?> {
         val user = userService.current(userId)
@@ -247,7 +295,13 @@ class DatingService(
         swipe.decision = request.decision
         swipe.createdAt = Instant.now()
         swipes.save(swipe)
-        if (request.decision != "like" || !swipes.existsBySwiperIdAndTargetIdAndDecision(target.id, user.id, "like")) {
+        val reciprocalLike = swipes.existsBySwiperIdAndTargetIdAndDecision(target.id, user.id, "like")
+        if (request.decision == "like" && !reciprocalLike) {
+            // The recipient can refresh the inbox without a notification
+            // storm. The query still re-checks every privacy invariant.
+            realtime.publishInbox(target.id, mapOf("type" to "interest_created"))
+        }
+        if (request.decision != "like" || !reciprocalLike) {
             return mapOf("matched" to false)
         }
         val pair = listOf(user.id, target.id).sortedBy(UUID::toString)
