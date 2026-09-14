@@ -112,6 +112,10 @@ class MessageEntity(
     @Column(name = "sender_id", nullable = false) var senderId: UUID = UUID.randomUUID(),
     @Column(name = "client_id") var clientId: UUID? = null,
     @Column(nullable = false, length = 500) var body: String = "",
+    @Column(name = "attachment_content_type", length = 32) var attachmentContentType: String? = null,
+    @Column(name = "attachment_content", columnDefinition = "bytea") var attachmentContent: ByteArray? = null,
+    @Column(name = "attachment_storage_key", length = 300, unique = true) var attachmentStorageKey: String? = null,
+    @Column(name = "attachment_byte_size") var attachmentByteSize: Int? = null,
     @Column(name = "read_at") var readAt: Instant? = null,
     @CreationTimestamp @Column(name = "created_at") var createdAt: Instant = Instant.now(),
 )
@@ -307,3 +311,4 @@ class ModerationActionEntity(
     var note: String? = null,
     @CreationTimestamp @Column(name = "created_at") var createdAt: Instant = Instant.now(),
 )
+
