@@ -21,6 +21,7 @@ import org.springframework.web.socket.config.annotation.WebSocketConfigurer
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 import org.springframework.web.socket.handler.TextWebSocketHandler
 import org.springframework.web.socket.server.HandshakeInterceptor
+import org.springframework.web.socket.server.standard.ServletServerContainerFactoryBean
 import org.springframework.web.util.UriComponentsBuilder
 import tools.jackson.databind.ObjectMapper
 import java.util.UUID
@@ -32,6 +33,13 @@ class RealtimeConfig(
     private val interceptor: MorrowHandshakeInterceptor,
     private val properties: MorrowProperties,
 ) : WebSocketConfigurer {
+    @Bean
+    fun webSocketContainer(): ServletServerContainerFactoryBean = ServletServerContainerFactoryBean().apply {
+        // Chat images are client-compressed before they enter the JSON WebSocket frame.
+        defaultMaxTextMessageBufferSize = 4_500_000
+        defaultMaxTextMessageSize = 4_500_000
+    }
+
     override fun registerWebSocketHandlers(registry: WebSocketHandlerRegistry) {
         registry.addHandler(handler, "/api/ws/matches/*", "/api/ws/inbox")
             .addInterceptors(interceptor)
@@ -118,8 +126,10 @@ class MorrowWebSocketHandler(
             "message" -> session.matchId()?.let { matchId ->
                 val clientId = runCatching { UUID.fromString(node.path("client_id").asString()) }.getOrNull()
                 val body = node.path("body").asString("")
+                val attachmentDataUrl = node.path("attachment_data_url").asText(null)
                 try {
-                    dating.sendMessage(userId, matchId, kr.morrow.api.web.MessageRequest(body, clientId))
+                    if (attachmentDataUrl != null && attachmentDataUrl.length > 4_000_000) throw ApiException(413, "사진 용량이 너무 커요")
+                    dating.sendMessage(userId, matchId, kr.morrow.api.web.MessageRequest(body, clientId, attachmentDataUrl))
                 } catch (error: ApiException) {
                     hub.send(session, mapOf("type" to "error", "detail" to error.message, "client_id" to clientId?.toString()))
                 }
@@ -150,3 +160,4 @@ class MorrowWebSocketHandler(
         return runCatching { UUID.fromString(path.substringAfterLast('/')) }.getOrNull()
     }
 }
+
