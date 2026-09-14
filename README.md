@@ -13,12 +13,13 @@
   <a href="https://morrow.coders.kr"><strong>서비스 열기</strong></a>
   · <a href="./release/LAUNCH_CHECKLIST.md">출시 체크리스트</a>
   · <a href="./release/MONETIZATION_ROADMAP.md">수익화 로드맵</a>
+  · <a href="./release/PRODUCT_PLAN.md">제품 고도화 기획</a>
   · <a href="./backend/.env.example">환경 변수 예시</a>
 </p>
 
 > 프로덕션은 가상 회원·가상 매치·가상 메시지를 생성하지 않습니다. 추천과 대화에 표시되는 정보는 실제 가입자가 직접 등록한 데이터만 사용합니다.
 
-프로덕션 URL: <https://morrow.coders.kr> · 현재 상태: **READY** (2026-09-14 최종 검증)
+프로덕션 URL: <https://morrow.coders.kr> · 현재 상태: **READY** (2026-09-15 고도화 릴리스 검증)
 
 ## 랜딩 페이지 방향
 
@@ -87,6 +88,8 @@ flowchart LR
     D --> E[설명 가능한 추천]
     E -->|나중에 다시 보기| K[저장한 프로필]
     K -->|준비되면 다시 확인| E
+    E -->|먼저 온 관심 확인| L[받은 관심]
+    L -->|관심으로 응답| F
     E -->|상호 관심| F[매치]
     F --> G[MORROW Sync]
     F --> H[실시간 채팅]
@@ -105,6 +108,7 @@ flowchart LR
 | 온보딩 | 필수 동의, 만 20세 확인, 전국 활동 지역·프로필·관심사·가능 시간 | Bean Validation, 전국 지역 카탈로그·선택지·길이 검증, 동의 버전 기록 |
 | 추천 | 전국 지역·연령·거리·성별·활동 상태 필터, 추천 이유 | 상호 선호 조건, `전국` 선택 시 지역·근사 거리 완화, 차단·스와이프·노출 제외, 조회 인덱스 |
 | 재방문 | 프로필 저장, 저장 목록에서 다시 보기·삭제 | 사용자-프로필 유일성, 최대 50개 제한, 차단·비활성 회원 재노출 방지 |
+| 받은 관심 | 먼저 관심을 보낸 실제 회원 확인, 관심 보내기·패스·상세 보기 | 차단·비활성·불완전·기존 매치·이미 응답한 계정 쿼리 제외, 수신 전용 인덱스 |
 | 사진 | 최대 6장, 순서·공개 범위 | 매직 바이트·크기·SHA-256 검증, 객체 저장소, 검수 전 비공개 |
 | 매칭 | 관심·패스, 상호 관심 매치 | 트랜잭션, 비관적 잠금, 사용자 쌍 유일성 |
 | Sync | 3라운드 아이스브레이커 | 양쪽 제출 전 비공개, 행 잠금, 라운드별 중복 방지 |
@@ -171,6 +175,7 @@ Kotlin은 Spring Initializr가 Spring Boot 4.1.1과 함께 제공하는 호환 �
 /api/me                              내 계정과 프로필
 /api/discover                        추천 목록
 /api/saved-profiles                  나중에 다시 볼 프로필 저장·목록·삭제
+/api/interests/received              나에게 먼저 온 관심 목록·응답
 /api/swipes                          관심·패스
 /api/matches/{id}/messages           메시지 이력·전송
 /api/messages/{id}/media             매칭 당사자 전용 채팅 사진
