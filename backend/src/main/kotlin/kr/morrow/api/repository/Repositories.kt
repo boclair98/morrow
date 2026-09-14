@@ -73,6 +73,32 @@ interface SwipeRepository : JpaRepository<SwipeEntity, UUID> {
     fun existsBySwiperIdAndTargetIdAndDecision(swiperId: UUID, targetId: UUID, decision: String): Boolean
     fun countBySwiperIdAndCreatedAtAfter(swiperId: UUID, createdAt: Instant): Long
     fun findBySwiperId(swiperId: UUID): List<SwipeEntity>
+
+    /**
+     * Returns current incoming likes that are still safe to show.  The
+     * recipient must never see an account they have blocked (or that blocked
+     * them), and an already-active match belongs in the matches inbox instead.
+     * Keeping this filter in the query avoids loading an unbounded swipe
+     * history into the application as the member base grows.
+     */
+    @Query(
+        """
+        select s from SwipeEntity s
+        where s.targetId = :targetId
+          and s.decision = 'like'
+          and not exists (select b.id from BlockEntity b where
+                (b.blockerId = :targetId and b.blockedId = s.swiperId)
+             or (b.blockerId = s.swiperId and b.blockedId = :targetId))
+          and not exists (select own.id from SwipeEntity own where
+                own.swiperId = :targetId and own.targetId = s.swiperId)
+          and not exists (select m.id from MatchEntity m where
+                m.status = 'active'
+            and ((m.userAId = :targetId and m.userBId = s.swiperId)
+             or (m.userAId = s.swiperId and m.userBId = :targetId)))
+        order by s.createdAt desc
+        """,
+    )
+    fun findReceivedLikes(@Param("targetId") targetId: UUID, pageable: Pageable): List<SwipeEntity>
 }
 
 interface MatchRepository : JpaRepository<MatchEntity, UUID> {
@@ -203,3 +229,4 @@ interface MatchSyncAnswerRepository : JpaRepository<MatchSyncAnswerEntity, UUID>
 }
 
 interface ModerationActionRepository : JpaRepository<ModerationActionEntity, UUID>
+
