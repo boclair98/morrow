@@ -13,12 +13,14 @@ import type { DiscoverProfile, MatchItem } from "@/lib/api";
 
 export type DrawerView = "chat" | "plans" | "sync";
 
-type PulseMode = "discover" | "sync" | "reply" | "plan";
+type PulseMode = "discover" | "interest" | "sync" | "reply" | "plan";
 
 type MorrowPulseProps = {
   profiles: DiscoverProfile[];
   matches: MatchItem[];
+  receivedCount: number;
   onDiscover: () => void;
+  onOpenInterests: () => void;
   onOpenMatch: (match: MatchItem, view: DrawerView) => void;
 };
 
@@ -34,8 +36,9 @@ function nextViewForMatch(match: MatchItem): DrawerView {
   return "plans";
 }
 
-function modeFor(matches: MatchItem[]): PulseMode {
+function modeFor(matches: MatchItem[], receivedCount: number): PulseMode {
   if (matches.some((match) => match.unread_count > 0)) return "reply";
+  if (receivedCount > 0) return "interest";
   if (matches.some((match) => !match.last_message)) return "sync";
   if (matches.length > 0) return "plan";
   return "discover";
@@ -44,10 +47,12 @@ function modeFor(matches: MatchItem[]): PulseMode {
 export function MorrowPulse({
   profiles,
   matches,
+  receivedCount,
   onDiscover,
+  onOpenInterests,
   onOpenMatch,
 }: MorrowPulseProps) {
-  const mode = modeFor(matches);
+  const mode = modeFor(matches, receivedCount);
   const unreadMatch = matches.find((match) => match.unread_count > 0);
   const quietMatch = matches.find((match) => !match.last_message);
   const activeMatch = unreadMatch ?? quietMatch ?? matches[0];
@@ -62,7 +67,14 @@ export function MorrowPulse({
           body: "짧은 답장 하나가 대화를 다시 움직여요. 읽은 뒤 편한 속도로 이어가세요.",
           cta: "대화 이어가기",
         }
-      : mode === "sync"
+      : mode === "interest"
+        ? {
+            eyebrow: "먼저 온 관심",
+            title: `${receivedCount}명이 먼저 마음을 보냈어요`,
+            body: "프로필을 보고 나에게도 마음이 가면 관심을 보내보세요. 서로 마음이 맞는 순간 바로 대화가 열려요.",
+            cta: "받은 관심 확인하기",
+          }
+        : mode === "sync"
         ? {
             eyebrow: "첫 대화 준비",
             title: `${actionMatch?.person.display_name ?? "매치"}님과 첫 문장 대신 3분 Sync`,
@@ -90,6 +102,10 @@ export function MorrowPulse({
             };
 
   function handleAction() {
+    if (mode === "interest") {
+      onOpenInterests();
+      return;
+    }
     if (actionMatch && mode !== "discover") {
       onOpenMatch(actionMatch, nextViewForMatch(actionMatch));
       return;
@@ -169,3 +185,4 @@ export function MorrowPulse({
 export function getMatchNextView(match: MatchItem): DrawerView {
   return nextViewForMatch(match);
 }
+
