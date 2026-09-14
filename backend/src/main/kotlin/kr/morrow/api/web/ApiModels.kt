@@ -62,7 +62,11 @@ data class ProfileRequest(
 }
 
 data class SwipeRequest(val targetId: UUID, @field:Pattern(regexp = "like|pass") val decision: String)
-data class MessageRequest(@field:NotBlank @field:Size(max = 500) val body: String, val clientId: UUID? = null)
+data class MessageRequest(
+    @field:Size(max = 500) val body: String = "",
+    val clientId: UUID? = null,
+    @field:Size(max = 4_000_000) val attachmentDataUrl: String? = null,
+)
 data class CloseMatchRequest(@field:Pattern(regexp = "not_fit|need_time|met_someone|uncomfortable|other") val reason: String)
 data class SafetyRequest(val userId: UUID)
 data class ReportRequest(
