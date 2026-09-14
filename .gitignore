@@ -14,6 +14,8 @@ backend/.uv-cache/
 .env
 .env.*
 API_KEYS_SECRET.txt
+.coders/
 .coders-upload-*.tar.gz
 !.env.example
 .DS_Store
+
