@@ -2,10 +2,11 @@ spring:
   application:
     name: morrow-api
   main:
-    # coders.kr scales to zero and requires a fast port bind. Controllers and
-    # repositories are created on first use; tests explicitly disable this so
-    # the complete graph is still verified before deployment.
-    lazy-initialization: true
+    # Flyway must run before JPA repositories can serve traffic. Keeping the
+    # application graph eager prevents a cold instance from accepting a
+    # request against a pre-migration schema (for example, before
+    # `saved_profiles` has been created).
+    lazy-initialization: false
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/app}
     username: ${DATABASE_USER:app}
@@ -90,3 +91,4 @@ morrow:
   storage-access-key: ${STORAGE_ACCESS_KEY:}
   storage-secret-key: ${STORAGE_SECRET_KEY:}
   storage-public-url: ${STORAGE_PUBLIC_URL:}
+
