@@ -33,6 +33,8 @@ class DatingService(
     private val userService: UserService,
     private val notifications: NotificationService,
     private val realtime: RealtimeHub,
+    private val photoService: PhotoService,
+    private val media: MediaStorage,
 ) {
     @Transactional
     fun saveProfile(userId: UUID, request: ProfileRequest): Map<String, Any> {
@@ -293,7 +295,7 @@ class DatingService(
             val last = messages.findFirstByMatchIdOrderByCreatedAtDesc(match.id)
             linkedMapOf(
                 "id" to match.id.toString(), "person" to userCard(other, user, photoGroups[other.id].orEmpty(), saved = other.id in savedIds),
-                "matched_at" to match.matchedAt, "last_message" to last?.body,
+                "matched_at" to match.matchedAt, "last_message" to last?.body?.takeIf { it.isNotBlank() } ?: last?.let { "사진을 보냈어요" },
                 "last_message_at" to last?.createdAt,
                 "unread_count" to messages.countByMatchIdAndSenderIdNotAndReadAtIsNull(match.id, user.id),
                 "last_active_at" to other.lastSeenAt,
@@ -316,21 +318,42 @@ class DatingService(
         val user = userService.current(userId)
         val match = ownedMatch(matchId, user.id)
         if (match.status != "active") throw ApiException(409, "종료된 대화예요")
+        val body = cleanText(request.body, 500)
+        val attachment = request.attachmentDataUrl?.takeIf { it.isNotBlank() }?.let { photoService.decodeImage(it) }
+        if (body.isBlank() && attachment == null) throw ApiException(422, "메시지나 사진을 하나 이상 보내주세요")
         request.clientId?.let { existingId ->
             messages.findBySenderIdAndClientId(user.id, existingId)?.let { return messageItem(it, user.id) }
         }
+        val messageId = UUID.randomUUID()
+        val attachmentContentType = attachment?.first
+        val attachmentBytes = attachment?.second
+        val extension = mapOf("image/jpeg" to "jpg", "image/png" to "png", "image/webp" to "webp").get(attachmentContentType)
+        var attachmentStorageKey: String? = null
+        var databaseAttachment: ByteArray? = attachmentBytes
+        if (attachmentBytes != null && media.configured) {
+            attachmentStorageKey = "chat/${match.id}/$messageId.${extension ?: "jpg"}"
+            runCatching { media.put(attachmentStorageKey, attachmentBytes, attachmentContentType ?: "image/jpeg") }
+                .getOrElse { throw ApiException(503, "사진 저장소에 잠시 연결할 수 없어요") }
+            databaseAttachment = null
+        }
         val message = messages.save(
             MessageEntity(
+                id = messageId,
                 matchId = match.id,
                 senderId = user.id,
                 clientId = request.clientId,
-                body = cleanText(request.body, 500),
+                body = body,
+                attachmentContentType = attachmentContentType,
+                attachmentContent = databaseAttachment,
+                attachmentStorageKey = attachmentStorageKey,
+                attachmentByteSize = attachmentBytes?.size,
             ),
         )
         val recipientId = if (match.userAId == user.id) match.userBId else match.userAId
         val recipient = users.findById(recipientId).orElse(null)
         if (recipient?.notifyMessages == true) {
-            notifications.create(recipientId, "message", "${user.displayName}님의 새 메시지", message.body.take(80), "match", match.id, "message:${message.id}")
+            val preview = message.body.takeIf { it.isNotBlank() }?.take(80) ?: "사진을 보냈어요"
+            notifications.create(recipientId, "message", "${user.displayName}님의 새 메시지", preview, "match", match.id, "message:${message.id}")
         }
         realtime.publishMatch(match.id, mapOf("type" to "message", "match_id" to match.id.toString(), "item" to messageItem(message, UUID(0, 0))))
         realtime.publishInbox(recipientId, mapOf("type" to "message", "match_id" to match.id.toString()))
@@ -345,6 +368,17 @@ class DatingService(
         val count = messages.markRead(matchId, user.id, now)
         realtime.publishMatch(matchId, mapOf("type" to "read", "match_id" to matchId.toString(), "reader_id" to user.id.toString(), "read_at" to now, "count" to count))
         return mapOf("status" to "ok", "count" to count, "read_at" to now)
+    }
+
+    @Transactional(readOnly = true)
+    fun messageContent(userId: UUID, messageId: UUID): PhotoContent {
+        val user = userService.current(userId)
+        val message = messages.findById(messageId).orElseThrow { ApiException(404, "사진을 찾지 못했어요") }
+        ownedMatch(message.matchId, user.id)
+        val contentType = message.attachmentContentType ?: throw ApiException(404, "사진을 찾지 못했어요")
+        val bytes = message.attachmentStorageKey?.let(media::fetch) ?: message.attachmentContent
+            ?: throw ApiException(404, "사진을 찾지 못했어요")
+        return PhotoContent(bytes, contentType, message.id.toString())
     }
 
     @Transactional(readOnly = true)
@@ -484,6 +518,9 @@ class DatingService(
     private fun messageItem(message: MessageEntity, viewerId: UUID): Map<String, Any?> = linkedMapOf(
         "id" to message.id.toString(), "client_id" to message.clientId?.toString(),
         "sender_id" to message.senderId.toString(), "body" to message.body,
+        "attachment_url" to if (message.attachmentContentType != null) "/api/messages/${message.id}/media" else null,
+        "attachment_content_type" to message.attachmentContentType,
+        "attachment_byte_size" to message.attachmentByteSize,
         "mine" to (message.senderId == viewerId), "created_at" to message.createdAt, "read_at" to message.readAt,
     )
 
