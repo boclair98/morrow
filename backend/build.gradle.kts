@@ -29,7 +29,10 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.boot:spring-boot-starter-websocket")
-    implementation("org.flywaydb:flyway-core")
+    // Boot 4 keeps Flyway auto-configuration in its own starter module.
+    // The starter is required to run migrations before JPA starts; the
+    // PostgreSQL adapter remains explicit for the production database.
+    implementation("org.springframework.boot:spring-boot-starter-flyway")
     implementation("org.flywaydb:flyway-database-postgresql")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("tools.jackson.module:jackson-module-kotlin")
@@ -61,3 +64,4 @@ allOpen {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
