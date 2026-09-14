@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.Size
 import kr.morrow.api.service.DatingService
+import kr.morrow.api.service.ApiException
 import kr.morrow.api.service.IdentityService
 import kr.morrow.api.service.NotificationService
 import kr.morrow.api.service.UserService
@@ -40,6 +41,18 @@ class ApiController(
     @GetMapping("/api/health")
     fun health(): Map<String, String> {
         jdbc.queryForObject("select 1", Int::class.java)
+        val requiredTables = setOf("users", "messages", "saved_profiles")
+        val existingTables = jdbc.query(
+            """
+            select lower(table_name)
+            from information_schema.tables
+            where lower(table_schema) = 'public'
+              and lower(table_name) in ('users', 'messages', 'saved_profiles')
+            """.trimIndent(),
+        ) { result, _ -> result.getString(1) }.toSet()
+        if (!existingTables.containsAll(requiredTables)) {
+            throw ApiException(503, "데이터베이스 마이그레이션이 아직 완료되지 않았어요")
+        }
         return mapOf("status" to "ok", "database" to "postgresql", "persistence" to "jpa")
     }
 
@@ -183,3 +196,4 @@ class ApiController(
         "count" to notifications.readAll(identity.requirePrincipal(authentication).userId),
     )
 }
+
