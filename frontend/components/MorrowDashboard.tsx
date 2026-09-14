@@ -498,7 +498,6 @@ export function MorrowDashboard({ me }: { me: Me }) {
     setNotifications((current) =>
       current.map((item) => ({
         ...item,
-
         read_at: item.read_at || new Date().toISOString(),
       })),
     );
@@ -999,7 +998,6 @@ function DiscoverFeed({
   savedCount,
   onSaved,
   onSave,
-
 }: {
   profiles: DiscoverProfile[];
   loading: boolean;
@@ -1500,7 +1498,6 @@ function FeedProfileCard({
             프로필 자세히 <ChevronRight className="size-3.5" />
           </button>
           <button
-
             onClick={onPass}
             className="h-9 shrink-0 px-2 text-[10px] font-semibold text-[#999] hover:text-black"
             aria-label={`${profile.display_name}님 패스`}
@@ -2001,7 +1998,6 @@ function FilterSheet({
           <h2 className="mt-1 text-xl font-black">이번 주의 조건을 고르세요</h2>
           <p className="mt-1 text-xs font-medium text-[#8b7f79]">
             필터는 추천 순서보다 먼저 적용돼요.
-
           </p>
         </div>
         <button
@@ -2502,7 +2498,6 @@ function Onboarding({ me }: { me: Me }) {
             <div>
               <p className="text-sm font-black text-[#ff5d68]">AVAILABILITY</p>
               <h1 className="mt-2 text-3xl font-black tracking-[-.04em]">
-
                 언제 만날 수 있나요?
               </h1>
               <p className="mt-2 text-sm font-medium text-[#8b7f79]">
@@ -3003,7 +2998,6 @@ function ChatDrawer({
         JSON.stringify({
           type: "message",
           client_id: clientId,
-
           body: message.body,
           ...(attachmentDataUrl ? { attachment_data_url: attachmentDataUrl } : {}),
         }),
@@ -3504,7 +3498,6 @@ function DatePlanner({
         onSubmit={createPlan}
         className="mt-5 rounded-2xl border border-[#e9e1dd] bg-white p-4"
       >
-
         <p className="text-sm font-black">새로운 약속 제안</p>
         <div className="mt-4 space-y-3">
           <input
@@ -3907,4 +3900,3 @@ function Agreement({
     </div>
   );
 }
-
