@@ -23,7 +23,7 @@ function readAsDataUrl(file: File): Promise<string> {
   });
 }
 
-async function compressImage(file: File): Promise<string> {
+export async function compressImage(file: File): Promise<string> {
   if (!file.type.startsWith("image/")) throw new Error("이미지 파일만 올릴 수 있어요");
   if (file.size > 20_000_000) throw new Error("20MB 이하의 사진만 올릴 수 있어요");
   const source = await readAsDataUrl(file);
@@ -186,3 +186,4 @@ export function ProfilePhotos({
     </section>
   );
 }
+
