@@ -129,7 +129,7 @@ class DatingService(
             Instant.now().minus(Duration.ofHours(6)),
             PageRequest.of(0, candidateLimit),
         ).filter { candidate ->
-            (area == null || area !in DatingOptions.areaCenters || candidate.area == area) &&
+            (area == null || area == "전국" || area !in DatingOptions.areaCenters || candidate.area == area) &&
                 (minAge == null || (candidate.age ?: 0) >= minAge) &&
                 (maxAge == null || (candidate.age ?: 100) <= maxAge) &&
                 (availability == null || availability !in DatingOptions.availability || availability in candidate.availability) &&
@@ -546,3 +546,4 @@ class DatingService(
         return 6371.0 * 2 * asin(sqrt(value))
     }
 }
+
