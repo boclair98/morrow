@@ -51,6 +51,15 @@ class ApiContractTest {
     }
 
     @Test
+    fun `nationwide area catalog keeps broad and local choices`() {
+        assertTrue("전국" in DatingOptions.areaCenters)
+        assertTrue(DatingOptions.areaCenters["전국"] == null)
+        assertTrue(DatingOptions.areaCenters["서울 · 강남구"] != null)
+        assertTrue(DatingOptions.areaCenters["경남 · 김해시"] != null)
+        assertTrue(DatingOptions.areaCenters["신촌"] != null)
+    }
+
+    @Test
     fun `oauth return path cannot escape the public origin`() {
         assertEquals("/", safeOAuthReturnTo("https://evil.example/steal"))
         assertEquals("/", safeOAuthReturnTo("//evil.example/steal"))
@@ -82,3 +91,4 @@ class ApplicationContextTest {
     @Test
     fun `spring security jpa websocket and controllers start together`() = Unit
 }
+
