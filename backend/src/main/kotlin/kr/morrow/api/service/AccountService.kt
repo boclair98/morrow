@@ -90,6 +90,7 @@ class AccountService(
         val user = users.findById(userId).orElseThrow { ApiException(401, "로그인이 필요해요") }
         val matchRows = matches.findAllForUser(user.id)
         val matchIds = matchRows.map { it.id }
+        val messageRows = if (matchIds.isEmpty()) emptyList() else messages.findByMatchIdInOrderByCreatedAtAsc(matchIds, PageRequest.of(0, 10_000))
         return linkedMapOf(
             "exported_at" to Instant.now(), "message_export_limit" to 10_000,
             "profile" to mapOf(
@@ -106,7 +107,7 @@ class AccountService(
             "photos" to photos.findByOwnerIdOrderByPositionAscCreatedAtAsc(user.id).map { mapOf("id" to it.id.toString(), "content_type" to it.contentType, "byte_size" to it.byteSize, "position" to it.position, "moderation_status" to it.moderationStatus, "created_at" to it.createdAt) },
             "swipes" to swipes.findBySwiperId(user.id).map { mapOf("target_id" to it.targetId.toString(), "decision" to it.decision, "created_at" to it.createdAt) },
             "matches" to matchRows.map { match -> mapOf("id" to match.id.toString(), "other_user_id" to (if (match.userAId == user.id) match.userBId else match.userAId).toString(), "status" to match.status, "matched_at" to match.matchedAt, "closed_at" to match.closedAt, "closed_reason" to match.closedReason) },
-            "messages" to if (matchIds.isEmpty()) emptyList<Any>() else messages.findByMatchIdInOrderByCreatedAtAsc(matchIds, PageRequest.of(0, 10_000)).map { mapOf("id" to it.id.toString(), "match_id" to it.matchId.toString(), "sender_id" to it.senderId.toString(), "mine" to (it.senderId == user.id), "body" to it.body, "created_at" to it.createdAt, "read_at" to it.readAt) },
+            "messages" to messageRows.map { mapOf("id" to it.id.toString(), "match_id" to it.matchId.toString(), "sender_id" to it.senderId.toString(), "mine" to (it.senderId == user.id), "body" to it.body, "attachment_content_type" to it.attachmentContentType, "attachment_byte_size" to it.attachmentByteSize, "created_at" to it.createdAt, "read_at" to it.readAt) },
             "date_plans" to plans.findByProposerId(user.id).map { mapOf("id" to it.id.toString(), "match_id" to it.matchId.toString(), "title" to it.title, "area" to it.area, "scheduled_for" to it.scheduledFor, "status" to it.status) },
             "blocked_user_ids" to blocks.findByBlockerId(user.id).map { it.blockedId.toString() },
             "verification_requests" to listOfNotNull(verifications.findFirstByUserIdOrderByRequestedAtDesc(user.id)).map { mapOf("id" to it.id.toString(), "method" to it.method, "status" to it.status, "note" to it.note, "requested_at" to it.requestedAt, "reviewed_at" to it.reviewedAt) },
@@ -120,6 +121,11 @@ class AccountService(
         if (confirmation != "MORROW 탈퇴") throw ApiException(422, "탈퇴 확인 문구를 입력해주세요")
         val user = users.findById(userId).orElseThrow { ApiException(401, "로그인이 필요해요") }
         photos.findByOwnerIdOrderByPositionAscCreatedAtAsc(user.id).mapNotNull { it.storageKey }.forEach(media::delete)
+        matches.findAllForUser(user.id)
+            .map { it.id }
+            .let { matchIds -> if (matchIds.isEmpty()) emptyList() else messages.findByMatchIdInOrderByCreatedAtAsc(matchIds, PageRequest.of(0, 10_000)) }
+            .mapNotNull { it.attachmentStorageKey }
+            .forEach(media::delete)
         users.delete(user)
         return mapOf("status" to "deleted")
     }
@@ -173,3 +179,4 @@ class AccountService(
         "request" to request?.let { mapOf("id" to it.id.toString(), "method" to it.method, "status" to it.status, "note" to it.note.takeIf { _ -> it.status == "rejected" }, "requested_at" to it.requestedAt, "reviewed_at" to it.reviewedAt) },
     )
 }
+
