@@ -89,6 +89,12 @@ class ApiController(
         @RequestParam(defaultValue = "50") @Min(1) @Max(50) limit: Int,
     ) = dating.savedProfiles(identity.requirePrincipal(authentication).userId, limit)
 
+    @GetMapping("/api/interests/received")
+    fun receivedInterests(
+        authentication: Authentication?,
+        @RequestParam(defaultValue = "12") @Min(1) @Max(30) limit: Int,
+    ) = dating.receivedLikes(identity.requirePrincipal(authentication).userId, limit)
+
     @PostMapping("/api/saved-profiles/{targetId}")
     fun saveProfileForLater(authentication: Authentication?, @PathVariable targetId: UUID) =
         dating.saveProfileForLater(identity.requirePrincipal(authentication).userId, targetId)
