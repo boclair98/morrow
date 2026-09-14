@@ -76,6 +76,7 @@ import {
   saveProfileForLater,
   type KakaoPlace,
 } from "@/lib/api";
+import { AREA_OPTIONS as areas, DISTANCE_OPTIONS } from "@/lib/dating-options";
 import { Me } from "@/lib/identity";
 
 type Tab = "discover" | "matches" | "activity" | "profile" | "safety" | "saved";
@@ -100,31 +101,6 @@ const times = [
   "토요일 저녁",
   "일요일 낮",
   "일요일 저녁",
-];
-const areas = [
-  "성수",
-  "연남",
-  "강남",
-  "잠실",
-  "한남",
-  "을지로",
-  "망원",
-  "신촌",
-  "여의도",
-  "인천",
-  "수원",
-  "성남",
-  "고양",
-  "용인",
-  "대전",
-  "세종",
-  "부산",
-  "대구",
-  "광주",
-  "울산",
-  "창원",
-  "제주",
-  "기타",
 ];
 const discoveryCategories = [
   {
@@ -242,9 +218,9 @@ function restoreOnboardingDraft(
       next.min_preferred_age = Math.max(20, Math.min(49, Math.round(draft.min_preferred_age)));
     if (typeof draft.max_preferred_age === "number" && Number.isFinite(draft.max_preferred_age))
       next.max_preferred_age = Math.max(20, Math.min(49, Math.round(draft.max_preferred_age)));
-    if (typeof draft.max_distance_km === "number" && [10, 20, 30, 50, 100, 200].includes(draft.max_distance_km))
+    if (typeof draft.max_distance_km === "number" && DISTANCE_OPTIONS.some((distance) => distance === draft.max_distance_km))
       next.max_distance_km = draft.max_distance_km;
-    if (areas.includes(String(draft.area))) next.area = String(draft.area);
+    if ((areas as readonly string[]).includes(String(draft.area))) next.area = String(draft.area);
     if (["woman", "man", "other"].includes(String(draft.gender)))
       next.gender = draft.gender as ProfileInput["gender"];
     if (["woman", "man", "all"].includes(String(draft.seeking)))
@@ -2046,6 +2022,9 @@ function FilterSheet({
               <option key={area}>{area}</option>
             ))}
           </select>
+          <p className="mt-1.5 text-[11px] font-medium leading-4 text-[#9a8f8a]">
+            전국을 고르면 지역 제한 없이 추천받아요.
+          </p>
         </div>
         <div>
           <p className="mb-2 text-xs font-black text-[#8b7f79]">
@@ -2198,7 +2177,7 @@ function defaultOnboardingForm(me: Me): ProfileInput {
     age: 25,
     gender: "woman",
     seeking: "man",
-    area: "성수",
+    area: "전국",
     job: "",
     bio: "",
     date_style: "대화가 잘 통하는 편안한 데이트",
@@ -2403,6 +2382,9 @@ function Onboarding({ me }: { me: Me }) {
                       <option key={a}>{a}</option>
                     ))}
                   </select>
+                  <p className="mt-1.5 text-[11px] font-medium leading-4 text-[#9a8f8a]">
+                    전국을 선택하면 주소를 저장하지 않고 전국 회원을 탐색해요.
+                  </p>
                 </Field>
                 <Field label="하는 일">
                   <input
@@ -2445,7 +2427,7 @@ function Onboarding({ me }: { me: Me }) {
                     onChange={(e) => setForm({ ...form, max_distance_km: Number(e.target.value) })}
                     className="morrow-input"
                   >
-                    {[10, 20, 30, 50, 100, 200].map((distance) => (
+                    {DISTANCE_OPTIONS.map((distance) => (
                       <option key={distance} value={distance}>{distance}km 이내</option>
                     ))}
                   </select>
@@ -3788,3 +3770,4 @@ function Agreement({
     </div>
   );
 }
+
