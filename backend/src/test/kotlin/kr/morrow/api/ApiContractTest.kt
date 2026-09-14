@@ -83,6 +83,7 @@ class ApiContractTest {
         "spring.flyway.enabled=false",
         "spring.data.redis.repositories.enabled=false",
         "morrow.realtime-redis-enabled=false",
+        "morrow.websocket-media-enabled=false",
         "morrow.dev-fake-user=00000000-0000-0000-0000-000000000001",
     ],
 )
