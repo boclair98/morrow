@@ -81,6 +81,9 @@ export type ChatMessage = {
   client_id: string | null;
   sender_id: string;
   body: string;
+  attachment_url?: string | null;
+  attachment_content_type?: string | null;
+  attachment_byte_size?: number | null;
   mine: boolean;
   created_at: string;
   read_at: string | null;
@@ -348,8 +351,20 @@ export const sendSwipe = (targetId: string, decision: "like" | "pass") =>
 export const fetchMatches = () => api<{ items: MatchItem[] }>("/api/matches?limit=30");
 export const fetchMessages = (matchId: string) =>
   api<{ items: ChatMessage[] }>(`/api/matches/${matchId}/messages`);
-export const sendMessage = (matchId: string, body: string, clientId = crypto.randomUUID()) =>
-  api<ChatMessage>(`/api/matches/${matchId}/messages`, { method: "POST", body: JSON.stringify({ body, client_id: clientId }) });
+export const sendMessage = (
+  matchId: string,
+  body: string,
+  clientId = crypto.randomUUID(),
+  attachmentDataUrl?: string,
+) =>
+  api<ChatMessage>(`/api/matches/${matchId}/messages`, {
+    method: "POST",
+    body: JSON.stringify({
+      body,
+      client_id: clientId,
+      ...(attachmentDataUrl ? { attachment_data_url: attachmentDataUrl } : {}),
+    }),
+  });
 export const markMessagesRead = (matchId: string) =>
   api<{ status: string; count: number; read_at: string }>(`/api/matches/${matchId}/read`, { method: "POST" });
 export function matchSocketUrl(matchId: string): string {
@@ -590,3 +605,4 @@ export const deleteProfilePhoto = (photoId: string) =>
   api<{ status: string }>(`/api/profile/photos/${photoId}`, { method: "DELETE" });
 export const makePrimaryPhoto = (photoId: string) =>
   api<{ photo: ProfilePhoto }>(`/api/profile/photos/${photoId}/primary`, { method: "POST" });
+
