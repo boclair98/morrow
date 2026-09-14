@@ -24,6 +24,9 @@ import org.springframework.web.socket.server.HandshakeInterceptor
 import org.springframework.web.socket.server.standard.ServletServerContainerFactoryBean
 import org.springframework.web.util.UriComponentsBuilder
 import tools.jackson.databind.ObjectMapper
+import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.UUID
 
 @Configuration
@@ -105,6 +108,14 @@ class MorrowWebSocketHandler(
     private val dating: DatingService,
     private val mapper: ObjectMapper,
 ) : TextWebSocketHandler() {
+    /**
+     * WebSocket frames do not pass through the HTTP rate-limit filter. Keep a
+     * small per-user budget here as a second line of defence against message
+     * floods. REST sends already have the shared Redis limiter; this protects
+     * the long-lived socket path as well.
+     */
+    private val messageWindows = ConcurrentHashMap<UUID, MessageWindow>()
+
     override fun afterConnectionEstablished(session: WebSocketSession) {
         val userId = session.userId()
         val matchId = session.matchId()
@@ -132,6 +143,10 @@ class MorrowWebSocketHandler(
                 val clientId = runCatching { UUID.fromString(node.path("client_id").asString()) }.getOrNull()
                 val body = node.path("body").asString("")
                 val attachmentDataUrl = node.path("attachment_data_url").asText(null)
+                if (!allowMessage(userId)) {
+                    hub.send(session, mapOf("type" to "error", "detail" to "메시지가 너무 빨라요. 잠시 후 다시 보내주세요.", "client_id" to clientId?.toString()))
+                    return@let
+                }
                 try {
                     if (attachmentDataUrl != null && attachmentDataUrl.length > 4_000_000) throw ApiException(413, "사진 용량이 너무 커요")
                     dating.sendMessage(userId, matchId, kr.morrow.api.web.MessageRequest(body, clientId, attachmentDataUrl))
@@ -140,6 +155,14 @@ class MorrowWebSocketHandler(
                 }
             }
         }
+    }
+
+    private fun allowMessage(userId: UUID): Boolean {
+        val minute = Instant.now().epochSecond / 60
+        val window = messageWindows.compute(userId) { _, current ->
+            if (current == null || current.minute != minute) MessageWindow(minute) else current
+        }!!
+        return window.count.incrementAndGet() <= 60
     }
 
     override fun afterConnectionClosed(session: WebSocketSession, status: CloseStatus) {
@@ -164,5 +187,7 @@ class MorrowWebSocketHandler(
         if (!path.startsWith("/api/ws/matches/")) return null
         return runCatching { UUID.fromString(path.substringAfterLast('/')) }.getOrNull()
     }
+
+    private data class MessageWindow(val minute: Long, val count: AtomicInteger = AtomicInteger())
 }
 
