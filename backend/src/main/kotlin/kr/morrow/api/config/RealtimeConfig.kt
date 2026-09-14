@@ -34,10 +34,15 @@ class RealtimeConfig(
     private val properties: MorrowProperties,
 ) : WebSocketConfigurer {
     @Bean
+    @ConditionalOnProperty(
+        prefix = "morrow",
+        name = ["websocket-media-enabled"],
+        havingValue = "true",
+        matchIfMissing = true,
+    )
     fun webSocketContainer(): ServletServerContainerFactoryBean = ServletServerContainerFactoryBean().apply {
         // Chat images are client-compressed before they enter the JSON WebSocket frame.
-        defaultMaxTextMessageBufferSize = 4_500_000
-        defaultMaxTextMessageSize = 4_500_000
+        maxTextMessageBufferSize = 4_500_000
     }
 
     override fun registerWebSocketHandlers(registry: WebSocketHandlerRegistry) {
