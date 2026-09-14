@@ -42,6 +42,7 @@ import {
   MorrowPulse,
   type DrawerView,
 } from "@/components/MorrowPulse";
+import { ReceivedInterestSection } from "@/components/ReceivedInterestSection";
 import {
   blockUser,
   closeMatch,
@@ -52,6 +53,7 @@ import {
   fetchDatePlans,
   fetchMessages,
   MatchItem,
+  ReceivedInterest,
   ProfilePhoto,
   ProfileInput,
   reportUser,
@@ -69,6 +71,7 @@ import {
   markMessagesRead,
   matchSocketUrl,
   fetchNotifications,
+  fetchReceivedInterests,
   inboxSocketUrl,
   NotificationItem,
   readAllNotifications,
@@ -264,6 +267,10 @@ export function MorrowDashboard({ me }: { me: Me }) {
   const [notificationsLoading, setNotificationsLoading] = useState(true);
   const [savedProfiles, setSavedProfiles] = useState<DiscoverProfile[]>([]);
   const [savedLoading, setSavedLoading] = useState(false);
+  const [receivedInterests, setReceivedInterests] = useState<ReceivedInterest[]>([]);
+  const [receivedLoading, setReceivedLoading] = useState(false);
+  const [receivedHasMore, setReceivedHasMore] = useState(false);
+  const [selectedInterest, setSelectedInterest] = useState<ReceivedInterest | null>(null);
   const [filters, setFilters] = useState<DiscoverFilters>({});
   const [hasMoreProfiles, setHasMoreProfiles] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -333,19 +340,36 @@ export function MorrowDashboard({ me }: { me: Me }) {
       setSavedLoading(false);
     }
   }, [me.legal_complete, me.profile_complete, me.status]);
+  const loadReceivedInterests = useCallback(async () => {
+    if (!me.profile_complete || !me.legal_complete || me.status !== "active")
+      return;
+    setReceivedLoading(true);
+    try {
+      const result = await fetchReceivedInterests();
+      setReceivedInterests(result.items);
+      setReceivedHasMore(result.has_more);
+    } catch (error) {
+      setNotice(
+        error instanceof Error ? error.message : "받은 관심을 불러오지 못했어요",
+      );
+    } finally {
+      setReceivedLoading(false);
+    }
+  }, [me.legal_complete, me.profile_complete, me.status]);
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void Promise.all([
         loadProfiles(),
         loadMatches(),
         loadNotifications(),
+        loadReceivedInterests(),
       ]);
     }, 0);
     return () => {
       window.clearTimeout(timer);
       discoverAbortRef.current?.abort();
     };
-  }, [loadMatches, loadNotifications, loadProfiles]);
+  }, [loadMatches, loadNotifications, loadProfiles, loadReceivedInterests]);
 
   useEffect(() => {
     if (!me.profile_complete || !me.legal_complete || me.status !== "active")
@@ -370,6 +394,10 @@ export function MorrowDashboard({ me }: { me: Me }) {
         try {
           payload = JSON.parse(event.data) as RealtimeEvent;
         } catch {
+          return;
+        }
+        if (payload.type === "interest_created") {
+          void loadReceivedInterests();
           return;
         }
         if (payload.type !== "notification") return;
@@ -397,7 +425,7 @@ export function MorrowDashboard({ me }: { me: Me }) {
       if (heartbeatTimer) clearInterval(heartbeatTimer);
       socket?.close(1000, "dashboard closed");
     };
-  }, [loadMatches, me.legal_complete, me.profile_complete, me.status]);
+  }, [loadMatches, loadReceivedInterests, me.legal_complete, me.profile_complete, me.status]);
 
   async function decideProfile(
     target: DiscoverProfile,
@@ -429,12 +457,34 @@ export function MorrowDashboard({ me }: { me: Me }) {
     if (current) await decideProfile(current, decision);
   }
 
+  async function respondToInterest(
+    profile: ReceivedInterest,
+    decision: "like" | "pass",
+  ) {
+    const previous = receivedInterests;
+    setReceivedInterests((items) => items.filter((item) => item.id !== profile.id));
+    setSelectedInterest(null);
+    try {
+      const result = await sendSwipe(profile.id, decision);
+      if (result.matched) {
+        setMatchedName(result.person || profile.display_name);
+        void Promise.all([loadMatches(), loadReceivedInterests()]);
+      } else if (decision === "like") {
+        setNotice(`${profile.display_name}님에게 관심을 보냈어요`);
+      }
+    } catch (error) {
+      setReceivedInterests(previous);
+      setNotice(error instanceof Error ? error.message : "다시 시도해주세요");
+    }
+  }
+
   async function toggleSavedProfile(profile: DiscoverProfile) {
     if (savedBusyRef.current.has(profile.id)) return;
     savedBusyRef.current.add(profile.id);
     const nextSaved = profile.saved !== true;
     const previousProfiles = profiles;
     const previousSavedProfiles = savedProfiles;
+    const previousReceivedInterests = receivedInterests;
     const withSavedState = { ...profile, saved: nextSaved };
     setProfiles((items) =>
       items.map((item) => (item.id === profile.id ? withSavedState : item)),
@@ -447,6 +497,9 @@ export function MorrowDashboard({ me }: { me: Me }) {
           ]
         : items.filter((item) => item.id !== profile.id),
     );
+    setReceivedInterests((items) =>
+      items.map((item) => (item.id === profile.id ? { ...item, saved: nextSaved } : item)),
+    );
     try {
       if (nextSaved) await saveProfileForLater(profile.id);
       else await removeSavedProfile(profile.id);
@@ -458,6 +511,7 @@ export function MorrowDashboard({ me }: { me: Me }) {
     } catch (error) {
       setProfiles(previousProfiles);
       setSavedProfiles(previousSavedProfiles);
+      setReceivedInterests(previousReceivedInterests);
       setNotice(error instanceof Error ? error.message : "저장 상태를 바꾸지 못했어요");
     } finally {
       savedBusyRef.current.delete(profile.id);
@@ -631,10 +685,12 @@ export function MorrowDashboard({ me }: { me: Me }) {
           <MorrowPulse
             profiles={profiles}
             matches={matches}
+            receivedCount={receivedInterests.length}
             onDiscover={() => {
               setTab("discover");
               void loadProfiles();
             }}
+            onOpenInterests={() => setTab("matches")}
             onOpenMatch={(match, view) => {
               setSelectedMatchView(view);
               setSelectedMatch(match);
@@ -817,6 +873,15 @@ export function MorrowDashboard({ me }: { me: Me }) {
                 가벼운 인사부터 오늘의 약속까지.
               </p>
             </div>
+            <ReceivedInterestSection
+              items={receivedInterests}
+              loading={receivedLoading}
+              hasMore={receivedHasMore}
+              onRefresh={() => void loadReceivedInterests()}
+              onOpen={(profile) => setSelectedInterest(profile)}
+              onLike={(profile) => respondToInterest(profile, "like")}
+              onPass={(profile) => respondToInterest(profile, "pass")}
+            />
             {matches.length ? (
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {matches.map((match) => (
@@ -958,6 +1023,15 @@ export function MorrowDashboard({ me }: { me: Me }) {
             setMatchedName(null);
             setTab("matches");
           }}
+        />
+      )}
+      {selectedInterest && (
+        <ProfilePreview
+          profile={selectedInterest}
+          onClose={() => setSelectedInterest(null)}
+          onLike={() => void respondToInterest(selectedInterest, "like")}
+          onPass={() => void respondToInterest(selectedInterest, "pass")}
+          onSave={() => void toggleSavedProfile(selectedInterest)}
         />
       )}
       {selectedMatch && (
@@ -3900,3 +3974,4 @@ function Agreement({
     </div>
   );
 }
+
