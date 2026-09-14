@@ -66,6 +66,10 @@ export type DiscoverProfile = {
   match_reasons: string[];
 };
 
+export type ReceivedInterest = DiscoverProfile & {
+  liked_at: string;
+};
+
 export type MatchItem = {
   id: string;
   person: DiscoverProfile;
@@ -107,6 +111,7 @@ export type RealtimeEvent =
   | { type: "match_closed"; match_id: string; closed_by_id: string; reason: string }
   | { type: "pong" }
   | { type: "inbox_ready"; user_id: string; heartbeat_seconds: number }
+  | { type: "interest_created" }
   | { type: "notification"; item: NotificationItem }
   | { type: "error"; detail: string; client_id?: string | null };
 
@@ -335,6 +340,8 @@ export const fetchDiscover = (
 };
 export const fetchSavedProfiles = () =>
   api<{ items: DiscoverProfile[] }>("/api/saved-profiles?limit=50");
+export const fetchReceivedInterests = () =>
+  api<{ items: ReceivedInterest[]; has_more: boolean }>("/api/interests/received?limit=12");
 export const saveProfileForLater = (targetId: string) =>
   api<{ status: string; saved: boolean }>(`/api/saved-profiles/${targetId}`, {
     method: "POST",
