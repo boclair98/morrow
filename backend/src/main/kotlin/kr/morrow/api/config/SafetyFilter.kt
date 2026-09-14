@@ -36,7 +36,9 @@ class SafetyFilter(
 
         val write = request.method in setOf("POST", "PUT", "PATCH", "DELETE")
         if (write) {
-            val max = if (request.requestURI.startsWith("/api/profile/photos")) 4_000_000L else 32_768L
+            val mediaUpload = request.requestURI.startsWith("/api/profile/photos") ||
+                (request.requestURI.startsWith("/api/matches/") && request.requestURI.endsWith("/messages"))
+            val max = if (mediaUpload) 4_000_000L else 32_768L
             if (request.contentLengthLong > max) {
                 jsonError(response, 413, "요청 크기가 너무 커요")
                 return
@@ -105,3 +107,4 @@ class SafetyFilter(
 
     private data class LocalBucket(val minute: Long, val count: AtomicInteger = AtomicInteger())
 }
+
