@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { SignOutLink } from "@/components/SignIn";
 import { TrustGrowthCenter } from "@/components/TrustGrowthCenter";
 import { AccountSettings, deleteAccount, downloadAccountData, fetchAccountSettings, signOut, updateAccountSettings } from "@/lib/api";
+import { DISTANCE_OPTIONS } from "@/lib/dating-options";
 
 const AdminConsole = dynamic(() => import("@/components/AdminConsole").then((module) => module.AdminConsole));
 
@@ -114,7 +115,7 @@ export function AccountCenter({ isAdmin }: { isAdmin: boolean }) {
                 onChange={(event) => setSettings({ ...settings, max_distance_km: Number(event.target.value) })}
                 className="morrow-input mt-2"
               >
-                {[10, 20, 30, 50, 100, 200].map((distance) => (
+                {DISTANCE_OPTIONS.map((distance) => (
                   <option key={distance} value={distance}>{distance}km 이내</option>
                 ))}
               </select>
@@ -159,3 +160,4 @@ function SettingRow({ title, body, checked, onChange }: { title: string; body: s
 function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (checked: boolean) => void; label: string }) {
   return <button type="button" role="switch" aria-checked={checked} aria-label={label} onClick={() => onChange(!checked)} className={`relative h-7 w-12 shrink-0 rounded-full transition ${checked ? "bg-black" : "bg-[#d0d0d0]"}`}><span className={`absolute top-1 size-5 rounded-full bg-white shadow transition ${checked ? "left-6" : "left-1"}`} /></button>;
 }
+
