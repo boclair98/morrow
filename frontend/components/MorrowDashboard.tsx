@@ -498,6 +498,7 @@ export function MorrowDashboard({ me }: { me: Me }) {
     setNotifications((current) =>
       current.map((item) => ({
         ...item,
+
         read_at: item.read_at || new Date().toISOString(),
       })),
     );
@@ -998,6 +999,7 @@ function DiscoverFeed({
   savedCount,
   onSaved,
   onSave,
+
 }: {
   profiles: DiscoverProfile[];
   loading: boolean;
@@ -1498,6 +1500,7 @@ function FeedProfileCard({
             프로필 자세히 <ChevronRight className="size-3.5" />
           </button>
           <button
+
             onClick={onPass}
             className="h-9 shrink-0 px-2 text-[10px] font-semibold text-[#999] hover:text-black"
             aria-label={`${profile.display_name}님 패스`}
@@ -1998,6 +2001,7 @@ function FilterSheet({
           <h2 className="mt-1 text-xl font-black">이번 주의 조건을 고르세요</h2>
           <p className="mt-1 text-xs font-medium text-[#8b7f79]">
             필터는 추천 순서보다 먼저 적용돼요.
+
           </p>
         </div>
         <button
@@ -2274,6 +2278,7 @@ function Onboarding({ me }: { me: Me }) {
       setSaving(false);
     }
   }
+
   return (
     <main className="morrow-dashboard min-h-screen px-4 py-6 text-[#211c1a] sm:py-10">
       <div className="mx-auto max-w-2xl">
@@ -2497,6 +2502,7 @@ function Onboarding({ me }: { me: Me }) {
             <div>
               <p className="text-sm font-black text-[#ff5d68]">AVAILABILITY</p>
               <h1 className="mt-2 text-3xl font-black tracking-[-.04em]">
+
                 언제 만날 수 있나요?
               </h1>
               <p className="mt-2 text-sm font-medium text-[#8b7f79]">
@@ -2977,6 +2983,53 @@ function ChatDrawer({
     }
   }
 
+  async function retryMessage(message: ChatMessage) {
+    const clientId = message.client_id;
+    if (!clientId || busy || conversationClosed) return;
+    setChatError(null);
+    setMessages((current) =>
+      current.map((item) =>
+        item.client_id === clientId
+          ? { ...item, sending: true, failed: false }
+          : item,
+      ),
+    );
+    const attachmentDataUrl = message.attachment_url?.startsWith("data:")
+      ? message.attachment_url
+      : undefined;
+    const socket = socketRef.current;
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(
+        JSON.stringify({
+          type: "message",
+          client_id: clientId,
+
+          body: message.body,
+          ...(attachmentDataUrl ? { attachment_data_url: attachmentDataUrl } : {}),
+        }),
+      );
+      return;
+    }
+    setBusy(true);
+    try {
+      const saved = await sendMessage(match.id, message.body, clientId, attachmentDataUrl);
+      setMessages((current) =>
+        current.map((item) => (item.client_id === clientId ? saved : item)),
+      );
+    } catch (error) {
+      setMessages((current) =>
+        current.map((item) =>
+          item.client_id === clientId
+            ? { ...item, sending: false, failed: true }
+            : item,
+        ),
+      );
+      setChatError(error instanceof Error ? error.message : "전송하지 못했어요");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function end(kind: "close" | "block" | "report") {
     setBusy(true);
     try {
@@ -3127,7 +3180,7 @@ function ChatDrawer({
               <div className="mx-auto max-w-xs rounded-lg bg-[#fff0f3] p-4 text-center text-xs font-semibold leading-5 text-[#7d5861]">
                 MORROW 안에서 먼저 대화해보세요.
                 <br />
-                금전·투자·인증번호 요구는 자동으로 차단됩니다.
+                금전·투자·인증번호 요구는 바로 신고·차단할 수 있어요.
               </div>
               {chatError && (
                 <div
@@ -3194,17 +3247,27 @@ function ChatDrawer({
                       </p>
                     )}
                     {message.mine && (
-                      <p
-                        className={`mt-1 text-[10px] font-semibold ${message.failed ? "text-red-600" : "text-[#999]"}`}
-                      >
-                        {message.failed
-                          ? "전송 실패"
-                          : message.sending
-                            ? "전송 중"
-                            : message.read_at
-                              ? "읽음"
-                              : "전송됨"}
-                      </p>
+                      <div className="mt-1 flex items-center justify-end gap-2 text-[10px] font-semibold">
+                        <span className={message.failed ? "text-red-600" : "text-[#999]"}>
+                          {message.failed
+                            ? "전송 실패"
+                            : message.sending
+                              ? "전송 중"
+                              : message.read_at
+                                ? "읽음"
+                                : "전송됨"}
+                        </span>
+                        {message.failed && message.client_id ? (
+                          <button
+                            type="button"
+                            onClick={() => retryMessage(message)}
+                            disabled={busy}
+                            className="rounded-full border border-[#ff9bae] px-2 py-1 text-[#e62e55] transition hover:bg-[#fff0f3] disabled:opacity-50"
+                          >
+                            다시 보내기
+                          </button>
+                        ) : null}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -3441,6 +3504,7 @@ function DatePlanner({
         onSubmit={createPlan}
         className="mt-5 rounded-2xl border border-[#e9e1dd] bg-white p-4"
       >
+
         <p className="text-sm font-black">새로운 약속 제안</p>
         <div className="mt-4 space-y-3">
           <input
