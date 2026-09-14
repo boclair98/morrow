@@ -58,7 +58,8 @@ export function PlacePicker({
 
   async function search(event: FormEvent) {
     event.preventDefault();
-    const keyword = `${area === "기타" ? "" : area} ${query}`.trim();
+    const areaPrefix = area === "기타" || area === "전국" ? "" : area;
+    const keyword = `${areaPrefix} ${query}`.trim();
     if (keyword.length < 2 || searching) return;
     setSearching(true);
     setError(null);
@@ -145,3 +146,4 @@ export function PlacePicker({
     </div>
   );
 }
+
