@@ -13,6 +13,7 @@ import {
   MapPin,
   MessageCircle,
   MoreHorizontal,
+  Paperclip,
   Pencil,
   RefreshCw,
   Search,
@@ -24,14 +25,14 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 
 import { SignOutLink } from "@/components/SignIn";
 import { AccountCenter } from "@/components/AccountCenter";
 import { ConsentGate } from "@/components/ConsentGate";
 import { NotificationCenter } from "@/components/NotificationCenter";
-import { ProfilePhotos } from "@/components/ProfilePhotos";
+import { compressImage, ProfilePhotos } from "@/components/ProfilePhotos";
 import { ProfileEditor } from "@/components/ProfileEditor";
 import { PlacePicker } from "@/components/PlacePicker";
 import { SafetyCenter } from "@/components/SafetyCenter";
@@ -2732,6 +2733,8 @@ function ChatDrawer({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [plans, setPlans] = useState<DatePlan[]>([]);
   const [text, setText] = useState("");
+  const [attachment, setAttachment] = useState<string | null>(null);
+  const [attachmentBusy, setAttachmentBusy] = useState(false);
   const [menu, setMenu] = useState(false);
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<DrawerView>(initialView);
@@ -2903,17 +2906,35 @@ function ChatDrawer({
     }, 1_000);
   }
 
+  async function selectAttachment(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setAttachmentBusy(true);
+    setChatError(null);
+    try {
+      setAttachment(await compressImage(file));
+    } catch (error) {
+      setChatError(error instanceof Error ? error.message : "사진을 준비하지 못했어요");
+    } finally {
+      setAttachmentBusy(false);
+    }
+  }
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     const body = text.trim();
-    if (!body || busy || conversationClosed) return;
+    if ((!body && !attachment) || busy || attachmentBusy || conversationClosed) return;
     setChatError(null);
     const clientId = window.crypto.randomUUID();
+    const attachmentDataUrl = attachment;
     const optimistic: ChatMessage = {
       id: `local:${clientId}`,
       client_id: clientId,
       sender_id: currentUserId,
       body,
+      attachment_url: attachmentDataUrl,
+      attachment_content_type: attachmentDataUrl ? "image/webp" : null,
       mine: true,
       created_at: new Date().toISOString(),
       read_at: null,
@@ -2921,16 +2942,22 @@ function ChatDrawer({
     };
     setMessages((current) => [...current, optimistic]);
     setText("");
+    setAttachment(null);
     const socket = socketRef.current;
     if (socket?.readyState === WebSocket.OPEN) {
       socket.send(
-        JSON.stringify({ type: "message", client_id: clientId, body }),
+        JSON.stringify({
+          type: "message",
+          client_id: clientId,
+          body,
+          ...(attachmentDataUrl ? { attachment_data_url: attachmentDataUrl } : {}),
+        }),
       );
       return;
     }
     setBusy(true);
     try {
-      const saved = await sendMessage(match.id, body, clientId);
+      const saved = await sendMessage(match.id, body, clientId, attachmentDataUrl ?? undefined);
       setMessages((current) =>
         current.map((item) => (item.client_id === clientId ? saved : item)),
       );
@@ -3083,6 +3110,16 @@ function ChatDrawer({
               )}
             </button>
           </div>
+          {match.person.photos.length > 0 && (
+            <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-0.5" aria-label={`${match.person.display_name}님의 프로필 사진`}>
+              {match.person.photos.slice(0, 6).map((photo, index) => (
+                <a key={photo.id} href={photo.url} target="_blank" rel="noreferrer" className="relative size-11 shrink-0 overflow-hidden rounded-xl border border-[#eadfdd] bg-[#f3ecea]" aria-label={`프로필 사진 ${index + 1} 크게 보기`}>
+                  <Image src={photo.url} alt={`${match.person.display_name} 프로필 사진 ${index + 1}`} fill unoptimized sizes="44px" className="object-cover" />
+                </a>
+              ))}
+              <span className="shrink-0 text-[11px] font-bold text-[#958884]">사진을 보며 대화해보세요</span>
+            </div>
+          )}
         </header>
         {view === "chat" ? (
           <>
@@ -3131,11 +3168,31 @@ function ChatDrawer({
                   <div
                     className={`max-w-[78%] ${message.mine ? "text-right" : "text-left"}`}
                   >
-                    <p
-                      className={`inline-block rounded-xl px-4 py-3 text-left text-sm font-medium leading-6 ${message.mine ? "rounded-br-sm bg-[#ff385c] text-white" : "rounded-bl-sm border border-[#e2e2e2] bg-white text-[#222]"}`}
-                    >
-                      {message.body}
-                    </p>
+                    {message.attachment_url && (
+                      <a
+                        href={message.attachment_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mb-1 block overflow-hidden rounded-2xl border border-black/5 bg-white shadow-sm"
+                        aria-label="받은 사진 크게 보기"
+                      >
+                        <Image
+                          src={message.attachment_url}
+                          alt="대화로 받은 사진"
+                          width={260}
+                          height={260}
+                          unoptimized
+                          className="max-h-64 w-full object-cover"
+                        />
+                      </a>
+                    )}
+                    {message.body && (
+                      <p
+                        className={`inline-block rounded-xl px-4 py-3 text-left text-sm font-medium leading-6 ${message.mine ? "rounded-br-sm bg-[#ff385c] text-white" : "rounded-bl-sm border border-[#e2e2e2] bg-white text-[#222]"}`}
+                      >
+                        {message.body}
+                      </p>
+                    )}
                     {message.mine && (
                       <p
                         className={`mt-1 text-[10px] font-semibold ${message.failed ? "text-red-600" : "text-[#999]"}`}
@@ -3161,27 +3218,43 @@ function ChatDrawer({
             </div>
             <form
               onSubmit={submit}
-              className="flex gap-2 border-t border-[#e5e5e5] bg-white p-4"
+              className="border-t border-[#e5e5e5] bg-white p-3"
             >
-              <input
-                value={text}
-                onChange={(event) => updateText(event.target.value)}
-                maxLength={500}
-                disabled={conversationClosed}
-                placeholder={
-                  conversationClosed
-                    ? "종료된 대화입니다"
-                    : "메시지를 입력하세요"
-                }
-                className="min-w-0 flex-1 rounded-md bg-[#f3f3f3] px-4 text-sm font-medium outline-none focus:ring-2 focus:ring-[#ff9bae] disabled:opacity-60"
-              />
-              <button
-                disabled={!text.trim() || busy || conversationClosed}
-                className="grid size-12 place-items-center rounded-md bg-black text-white disabled:opacity-40"
-                aria-label="보내기"
-              >
-                <Send className="size-5" />
-              </button>
+              {attachment && (
+                <div className="mb-2 flex items-center gap-2 rounded-xl bg-[#fff7f5] p-2">
+                  <Image src={attachment} alt="보낼 사진 미리보기" width={48} height={48} unoptimized className="size-12 rounded-lg object-cover" />
+                  <p className="min-w-0 flex-1 truncate text-xs font-bold text-[#6f5b58]">사진을 보낼 준비가 됐어요</p>
+                  <button type="button" onClick={() => setAttachment(null)} className="grid size-8 shrink-0 place-items-center rounded-full bg-white text-[#777]" aria-label="첨부 사진 삭제"><X className="size-4" /></button>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <label className="grid size-12 shrink-0 cursor-pointer place-items-center rounded-xl border border-[#e2d9d7] bg-white text-[#766664] transition hover:border-[#ff9bae] hover:text-[#ff385c] has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50" aria-label="사진 첨부">
+                  {attachmentBusy ? <RefreshCw className="size-5 animate-spin" /> : <Paperclip className="size-5" />}
+                  <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={selectAttachment} disabled={conversationClosed || attachmentBusy} />
+                </label>
+                <input
+                  value={text}
+                  onChange={(event) => updateText(event.target.value)}
+                  maxLength={500}
+                  disabled={conversationClosed}
+                  placeholder={
+                    conversationClosed
+                      ? "종료된 대화입니다"
+                      : attachment
+                        ? "사진과 함께 한마디를 남겨보세요"
+                        : "메시지를 입력하세요"
+                  }
+                  className="min-w-0 flex-1 rounded-xl bg-[#f3f3f3] px-4 text-sm font-medium outline-none focus:ring-2 focus:ring-[#ff9bae] disabled:opacity-60"
+                />
+                <button
+                  disabled={(!text.trim() && !attachment) || busy || attachmentBusy || conversationClosed}
+                  className="grid size-12 shrink-0 place-items-center rounded-xl bg-black text-white disabled:opacity-40"
+                  aria-label="보내기"
+                >
+                  <Send className="size-5" />
+                </button>
+              </div>
+              <p className="mt-2 px-1 text-[10px] font-semibold text-[#a29591]">매칭된 상대에게만 사진이 공유돼요 · 1장씩 안전하게 보내요</p>
             </form>
           </>
         ) : view === "sync" ? (
