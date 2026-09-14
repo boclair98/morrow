@@ -293,9 +293,11 @@ class DatingService(
             val otherId = if (match.userAId == user.id) match.userBId else match.userAId
             val other = people[otherId] ?: return@mapNotNull null
             val last = messages.findFirstByMatchIdOrderByCreatedAtDesc(match.id)
+            val lastMessagePreview: String? = last?.body?.takeIf { it.isNotBlank() }
+                ?: if (last?.attachmentContentType != null) "사진을 보냈어요" else null
             linkedMapOf(
                 "id" to match.id.toString(), "person" to userCard(other, user, photoGroups[other.id].orEmpty(), saved = other.id in savedIds),
-                "matched_at" to match.matchedAt, "last_message" to last?.body?.takeIf { it.isNotBlank() } ?: last?.let { "사진을 보냈어요" },
+                "matched_at" to match.matchedAt, "last_message" to lastMessagePreview,
                 "last_message_at" to last?.createdAt,
                 "unread_count" to messages.countByMatchIdAndSenderIdNotAndReadAtIsNull(match.id, user.id),
                 "last_active_at" to other.lastSeenAt,
