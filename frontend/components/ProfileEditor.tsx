@@ -7,33 +7,8 @@ import {
   type ProfileDetailsInput,
   updateProfile,
 } from "@/lib/api";
+import { AREA_OPTIONS as areas, DISTANCE_OPTIONS } from "@/lib/dating-options";
 import type { Me } from "@/lib/identity";
-
-const areas = [
-  "성수",
-  "연남",
-  "강남",
-  "잠실",
-  "한남",
-  "을지로",
-  "망원",
-  "신촌",
-  "여의도",
-  "인천",
-  "수원",
-  "성남",
-  "고양",
-  "용인",
-  "대전",
-  "세종",
-  "부산",
-  "대구",
-  "광주",
-  "울산",
-  "창원",
-  "제주",
-  "기타",
-] as const;
 
 const interests = [
   "카페",
@@ -74,7 +49,7 @@ function initialProfile(me: Me): ProfileDetailsInput {
       me.gender === "man" || me.gender === "other" ? me.gender : "woman",
     seeking:
       me.seeking === "woman" || me.seeking === "all" ? me.seeking : "man",
-    area: me.area || "성수",
+    area: me.area || "전국",
     job: me.job || "",
     bio: me.bio || "",
     date_style: me.date_style || dateStyleSuggestions[0],
@@ -255,6 +230,9 @@ export function ProfileEditor({
                 <option key={area} value={area}>{area}</option>
               ))}
             </select>
+            <p className="mt-1.5 text-[11px] font-medium leading-4 text-[#9a8f8a]">
+              전국을 선택하면 주소를 저장하지 않고 전국 회원을 탐색해요.
+            </p>
           </EditorField>
           <EditorField label="하는 일">
             <input
@@ -310,7 +288,7 @@ export function ProfileEditor({
               }
               className="morrow-input"
             >
-              {[10, 20, 30, 50, 100, 200].map((distance) => (
+              {DISTANCE_OPTIONS.map((distance) => (
                 <option key={distance} value={distance}>{distance}km 이내</option>
               ))}
             </select>
@@ -480,3 +458,4 @@ function ChoiceButton({
     </button>
   );
 }
+
