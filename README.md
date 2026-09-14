@@ -108,7 +108,7 @@ flowchart LR
 | 사진 | 최대 6장, 순서·공개 범위 | 매직 바이트·크기·SHA-256 검증, 객체 저장소, 검수 전 비공개 |
 | 매칭 | 관심·패스, 상호 관심 매치 | 트랜잭션, 비관적 잠금, 사용자 쌍 유일성 |
 | Sync | 3라운드 아이스브레이커 | 양쪽 제출 전 비공개, 행 잠금, 라운드별 중복 방지 |
-| 채팅 | 메시지·읽음·입력 중·재연결 | WebSocket 인증, DB 선저장, `client_id` 멱등성 |
+| 채팅 | 매칭 후 1:1 텍스트·사진 메시지, 프로필 사진 갤러리, 읽음·입력 중·재연결 | WebSocket 인증, DB 선저장, `client_id` 멱등성, 이미지 매직바이트·크기 검증, 매칭 당사자만 미디어 열람 |
 | 약속 | 날짜·시간·장소 제안, 수락·거절 | 매치 당사자 권한, URL·좌표·상태 전이 검증 |
 | 안전 | 차단·신고·대화 종료·약속 안전 확인 | 차단 즉시 노출 분리, 신고 큐, 신뢰 피드백 |
 | 운영 | 사진·신고·본인확인 검수, 정지·복구 | 운영자 UUID 검사, 모든 조치 감사 로그 |
@@ -173,6 +173,7 @@ Kotlin은 Spring Initializr가 Spring Boot 4.1.1과 함께 제공하는 호환 �
 /api/saved-profiles                  나중에 다시 볼 프로필 저장·목록·삭제
 /api/swipes                          관심·패스
 /api/matches/{id}/messages           메시지 이력·전송
+/api/messages/{id}/media             매칭 당사자 전용 채팅 사진
 /api/ws/matches/{id}                 매치 실시간 채널
 /api/ws/inbox                        받은편지함 실시간 채널
 /api/matches/{id}/sync               MORROW Sync
@@ -254,7 +255,7 @@ pnpm lint
 pnpm build
 ```
 
-서버 테스트는 프로필 검증, 만 20세 제한, OAuth 오픈 리다이렉트 방지, 세션 SHA-256, Security/JPA/WebSocket/Controller 통합 기동을 확인합니다. 프로덕션 빌드 전 과정에서는 TypeScript 검사와 모든 정적 페이지 생성을 함께 수행합니다.
+서버 테스트는 프로필 검증, 만 20세 제한, OAuth 오픈 리다이렉트 방지, 세션 SHA-256, Security/JPA/WebSocket/Controller 통합 기동을 확인합니다. 프로덕션 빌드 전 과정에서는 TypeScript 검사와 모든 정적 페이지 생성을 함께 수행합니다. 채팅 사진은 매칭된 상대만 인증 쿠키로 읽을 수 있으며, 전화번호·카카오톡 아이디를 자동 공개하지 않습니다.
 
 ## 보안·트래픽 원칙
 
