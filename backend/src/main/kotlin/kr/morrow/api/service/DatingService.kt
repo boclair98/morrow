@@ -343,17 +343,23 @@ class DatingService(
             .findByUserIdAndTargetUserIdIn(user.id, otherIds)
             .map { it.targetUserId }
             .toSet()
+        val latestByMatch = if (rows.isEmpty()) emptyMap() else messages
+            .findLatestByMatchIds(rows.map { it.id })
+            .associateBy { it.matchId }
+        val unreadByMatch = if (rows.isEmpty()) emptyMap() else messages
+            .unreadCountsByMatchIds(rows.map { it.id }, user.id)
+            .associate { row -> row[0] as UUID to (row[1] as Number).toLong() }
         val items = rows.mapNotNull { match ->
             val otherId = if (match.userAId == user.id) match.userBId else match.userAId
             val other = people[otherId] ?: return@mapNotNull null
-            val last = messages.findFirstByMatchIdOrderByCreatedAtDesc(match.id)
+            val last = latestByMatch[match.id]
             val lastMessagePreview: String? = last?.body?.takeIf { it.isNotBlank() }
                 ?: if (last?.attachmentContentType != null) "사진을 보냈어요" else null
             linkedMapOf(
                 "id" to match.id.toString(), "person" to userCard(other, user, photoGroups[other.id].orEmpty(), saved = other.id in savedIds),
                 "matched_at" to match.matchedAt, "last_message" to lastMessagePreview,
                 "last_message_at" to last?.createdAt,
-                "unread_count" to messages.countByMatchIdAndSenderIdNotAndReadAtIsNull(match.id, user.id),
+                "unread_count" to (unreadByMatch[match.id] ?: 0L),
                 "last_active_at" to other.lastSeenAt,
             )
         }
