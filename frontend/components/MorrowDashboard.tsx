@@ -2,6 +2,7 @@
 
 import {
   ArrowLeft,
+  ArrowUp,
   Bell,
   Bookmark,
   CalendarDays,
@@ -2851,6 +2852,8 @@ function ChatDrawer({
   const [otherTyping, setOtherTyping] = useState(false);
   const [conversationClosed, setConversationClosed] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [hasOlderMessages, setHasOlderMessages] = useState(false);
+  const [olderMessagesLoading, setOlderMessagesLoading] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
   const typingStopRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messageEndRef = useRef<HTMLDivElement | null>(null);
@@ -2883,6 +2886,7 @@ function ChatDrawer({
       .then(([messageResult, planResult]) => {
         if (disposed) return;
         setMessages(messageResult.items);
+        setHasOlderMessages(messageResult.has_more);
         setPlans(planResult.items);
       })
       .catch(() => {
@@ -2990,6 +2994,25 @@ function ChatDrawer({
       socketRef.current = null;
     };
   }, [currentUserId, match.id]);
+
+  async function loadOlderMessages() {
+    if (olderMessagesLoading || !hasOlderMessages) return;
+    const before = messages[0]?.created_at;
+    if (!before) return;
+    setOlderMessagesLoading(true);
+    try {
+      const result = await fetchMessages(match.id, before);
+      setMessages((current) => {
+        const seen = new Set(current.map((item) => item.id));
+        return [...result.items.filter((item) => !seen.has(item.id)), ...current];
+      });
+      setHasOlderMessages(result.has_more);
+    } catch (error) {
+      setChatError(error instanceof Error ? error.message : "이전 메시지를 불러오지 못했어요");
+    } finally {
+      setOlderMessagesLoading(false);
+    }
+  }
 
   useEffect(() => {
     messageEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -3275,6 +3298,17 @@ function ChatDrawer({
         {view === "chat" ? (
           <>
             <div className="flex-1 space-y-3 overflow-y-auto p-5">
+              {hasOlderMessages && (
+                <button
+                  type="button"
+                  onClick={() => void loadOlderMessages()}
+                  disabled={olderMessagesLoading}
+                  className="mx-auto flex min-h-10 items-center gap-2 rounded-full border border-[#ddd] bg-white px-4 text-xs font-bold text-[#66585b] shadow-sm transition hover:border-[#ff9bae] hover:text-[#e62e55] disabled:opacity-50"
+                >
+                  {olderMessagesLoading ? <RefreshCw className="size-3.5 animate-spin" /> : <ArrowUp className="size-3.5" />}
+                  이전 대화 불러오기
+                </button>
+              )}
               <div className="mx-auto max-w-xs rounded-lg bg-[#fff0f3] p-4 text-center text-xs font-semibold leading-5 text-[#7d5861]">
                 MORROW 안에서 먼저 대화해보세요.
                 <br />
