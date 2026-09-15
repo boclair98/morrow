@@ -14,6 +14,7 @@
   · <a href="./release/LAUNCH_CHECKLIST.md">출시 체크리스트</a>
   · <a href="./release/MONETIZATION_ROADMAP.md">수익화 로드맵</a>
   · <a href="./release/PRODUCT_PLAN.md">제품 고도화 기획</a>
+  · <a href="./release/SCALE_READINESS.md">10만+ 운영 준비 기준</a>
   · <a href="./backend/.env.example">환경 변수 예시</a>
 </p>
 
@@ -90,6 +91,22 @@
 전환율·이탈률·신고율을 함께 비교해 결정합니다.
 
 세부 지표와 과금 도입 게이트는 [`release/MONETIZATION_ROADMAP.md`](./release/MONETIZATION_ROADMAP.md)에서 관리합니다.
+
+## 10만+ 회원 운영 준비
+
+매치 목록의 N+1 조회 제거, 메시지·알림 핫패스 인덱스, Redis 공유 속도 제한,
+Redis 장애 시 메모리 폴백 정리, PostgreSQL·Redis readiness 엔드포인트를 포함한
+확장성 가드레일을 적용했습니다. 합성 데이터 기반 부하 시나리오와 점진 공개·복구
+게이트는 [`release/SCALE_READINESS.md`](./release/SCALE_READINESS.md)에 정리되어
+있으며, 운영 URL의 비파괴 자가진단은 다음 명령으로 반복 실행할 수 있습니다.
+
+```powershell
+pwsh ./release/self-test.ps1 -BaseUrl https://morrow.coders.kr -DurationMinutes 5
+```
+
+자가진단은 서비스 생존·DB·Redis·OAuth 제공자와 보호 API의 익명 접근 차단만
+확인합니다. 10만 명 수용 판정은 별도 스테이징에서 익명화 합성 계정으로 승인된
+부하·복구 테스트를 통과해야 합니다.
 
 ## 핵심 사용자 흐름
 
