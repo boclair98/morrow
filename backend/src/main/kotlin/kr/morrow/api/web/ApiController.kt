@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
+import java.time.Instant
 
 @RestController
 @Validated
@@ -146,7 +147,8 @@ class ApiController(
         authentication: Authentication?,
         @PathVariable matchId: UUID,
         @RequestParam(defaultValue = "40") @Min(1) @Max(50) limit: Int,
-    ) = dating.messages(identity.requirePrincipal(authentication).userId, matchId, limit)
+        @RequestParam(required = false) before: Instant?,
+    ) = dating.messages(identity.requirePrincipal(authentication).userId, matchId, limit, before)
 
     @PostMapping("/api/matches/{matchId}/messages")
     @ResponseStatus(HttpStatus.CREATED)
