@@ -10,7 +10,9 @@ import kr.morrow.api.service.IdentityService
 import kr.morrow.api.service.NotificationService
 import kr.morrow.api.service.UserService
 import org.springframework.http.HttpStatus
+import org.springframework.http.ResponseEntity
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.security.core.Authentication
 import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.GetMapping
@@ -34,6 +36,7 @@ class ApiController(
     private val dating: DatingService,
     private val notifications: NotificationService,
     private val jdbc: JdbcTemplate,
+    private val redis: StringRedisTemplate,
 ) {
     @GetMapping("/api/health/live")
     fun live() = mapOf("status" to "ok", "runtime" to "spring-boot-kotlin")
@@ -54,6 +57,31 @@ class ApiController(
             throw ApiException(503, "데이터베이스 마이그레이션이 아직 완료되지 않았어요")
         }
         return mapOf("status" to "ok", "database" to "postgresql", "persistence" to "jpa")
+    }
+
+    /**
+     * Readiness is intentionally stricter than liveness.  Coders.kr (and a
+     * future load balancer) can stop routing traffic to an instance when the
+     * database or shared Redis coordination layer is unavailable, while the
+     * liveness endpoint still lets the process be restarted cleanly.
+     */
+    @GetMapping("/api/health/ready")
+    fun ready(): ResponseEntity<Map<String, Any>> {
+        val database = runCatching { jdbc.queryForObject("select 1", Int::class.java) == 1 }.getOrDefault(false)
+        val redisOk = runCatching {
+            redis.execute { connection ->
+                connection.ping()
+                true
+            } == true
+        }.getOrDefault(false)
+        val ready = database && redisOk
+        val payload = mapOf<String, Any>(
+            "status" to if (ready) "ok" else "not_ready",
+            "database" to database,
+            "redis" to redisOk,
+            "checked_at" to java.time.Instant.now().toString(),
+        )
+        return ResponseEntity.status(if (ready) HttpStatus.OK else HttpStatus.SERVICE_UNAVAILABLE).body(payload)
     }
 
     @GetMapping("/api/me")
