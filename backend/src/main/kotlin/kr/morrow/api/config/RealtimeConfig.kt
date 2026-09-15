@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Bean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.data.redis.connection.RedisConnectionFactory
+import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.data.redis.listener.ChannelTopic
 import org.springframework.data.redis.listener.RedisMessageListenerContainer
 import org.springframework.http.server.ServerHttpRequest
@@ -25,6 +26,7 @@ import org.springframework.web.socket.server.standard.ServletServerContainerFact
 import org.springframework.web.util.UriComponentsBuilder
 import tools.jackson.databind.ObjectMapper
 import java.time.Instant
+import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.UUID
@@ -107,6 +109,7 @@ class MorrowWebSocketHandler(
     private val hub: RealtimeHub,
     private val dating: DatingService,
     private val mapper: ObjectMapper,
+    private val redis: StringRedisTemplate,
 ) : TextWebSocketHandler() {
     /**
      * WebSocket frames do not pass through the HTTP rate-limit filter. Keep a
@@ -115,6 +118,7 @@ class MorrowWebSocketHandler(
      * the long-lived socket path as well.
      */
     private val messageWindows = ConcurrentHashMap<UUID, MessageWindow>()
+    private val fallbackRequests = AtomicInteger()
 
     override fun afterConnectionEstablished(session: WebSocketSession) {
         val userId = session.userId()
@@ -159,10 +163,23 @@ class MorrowWebSocketHandler(
 
     private fun allowMessage(userId: UUID): Boolean {
         val minute = Instant.now().epochSecond / 60
-        val window = messageWindows.compute(userId) { _, current ->
-            if (current == null || current.minute != minute) MessageWindow(minute) else current
-        }!!
-        return window.count.incrementAndGet() <= 60
+        return try {
+            val key = "morrow:ws-rate:$minute:$userId"
+            val count = redis.opsForValue().increment(key) ?: 1L
+            if (count == 1L) redis.expire(key, Duration.ofSeconds(75))
+            count <= 60
+        } catch (_: Exception) {
+            // Keep a bounded local fallback for a Redis outage.  The normal
+            // path is shared across nodes so a user cannot bypass the limit by
+            // reconnecting to another WebSocket instance.
+            if (messageWindows.size > 10_000 && fallbackRequests.incrementAndGet() % 64 == 0) {
+                messageWindows.entries.removeIf { it.value.minute != minute }
+            }
+            val window = messageWindows.compute(userId) { _, current ->
+                if (current == null || current.minute != minute) MessageWindow(minute) else current
+            }!!
+            window.count.incrementAndGet() <= 60
+        }
     }
 
     override fun afterConnectionClosed(session: WebSocketSession, status: CloseStatus) {
