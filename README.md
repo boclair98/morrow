@@ -201,13 +201,15 @@ Kotlin은 Spring Initializr가 Spring Boot 4.1.1과 함께 제공하는 호환 �
 주요 경로는 기존 React 클라이언트 계약을 유지하므로 서버 전환 뒤에도 UI를 다시 작성할 필요가 없습니다.
 
 ```text
+/api/health/live                    프로세스 생존 확인
+/api/health/ready                   PostgreSQL·Redis readiness 확인
 /api/auth/{provider}/start|callback   OAuth 시작·콜백
 /api/me                              내 계정과 프로필
 /api/discover                        추천 목록
 /api/saved-profiles                  나중에 다시 볼 프로필 저장·목록·삭제
 /api/interests/received              나에게 먼저 온 관심 목록·응답
 /api/swipes                          관심·패스
-/api/matches/{id}/messages           메시지 이력·전송
+/api/matches/{id}/messages           메시지 이력·전송 (`before` 커서로 이전 기록 페이지)
 /api/messages/{id}/media             매칭 당사자 전용 채팅 사진
 /api/ws/matches/{id}                 매치 실시간 채널
 /api/ws/inbox                        받은편지함 실시간 채널
