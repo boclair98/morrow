@@ -120,6 +120,38 @@ interface MessageRepository : JpaRepository<MessageEntity, UUID> {
     fun countByMatchIdAndSenderIdNotAndReadAtIsNull(matchId: UUID, senderId: UUID): Long
     fun findByMatchIdInOrderByCreatedAtAsc(matchIds: Collection<UUID>, pageable: Pageable): List<MessageEntity>
 
+    /**
+     * One query for the conversation preview on the matches screen.  A
+     * DISTINCT ON query is intentionally PostgreSQL-specific because the
+     * production database is PostgreSQL and it avoids one round trip per
+     * match as the member base grows.
+     */
+    @Query(
+        value = """
+            select distinct on (match_id) *
+            from messages
+            where match_id in (:matchIds)
+            order by match_id, created_at desc, id desc
+        """,
+        nativeQuery = true,
+    )
+    fun findLatestByMatchIds(@Param("matchIds") matchIds: Collection<UUID>): List<MessageEntity>
+
+    @Query(
+        """
+            select m.matchId, count(m.id)
+            from MessageEntity m
+            where m.matchId in :matchIds
+              and m.senderId <> :readerId
+              and m.readAt is null
+            group by m.matchId
+        """,
+    )
+    fun unreadCountsByMatchIds(
+        @Param("matchIds") matchIds: Collection<UUID>,
+        @Param("readerId") readerId: UUID,
+    ): List<Array<Any>>
+
     @Modifying
     @Query("update MessageEntity m set m.readAt = :readAt where m.matchId = :matchId and m.senderId <> :readerId and m.readAt is null")
     fun markRead(@Param("matchId") matchId: UUID, @Param("readerId") readerId: UUID, @Param("readAt") readAt: Instant): Int
