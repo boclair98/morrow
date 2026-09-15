@@ -32,7 +32,7 @@ class SecurityConfig {
             .authorizeHttpRequests { auth ->
                 auth
                     .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                    .requestMatchers("/api/health", "/api/health/live", "/api/auth/providers").permitAll()
+                    .requestMatchers("/api/health", "/api/health/live", "/api/health/ready", "/api/auth/providers").permitAll()
                     .requestMatchers(HttpMethod.POST, "/api/auth/*/start").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/auth/*/callback").permitAll()
                     .requestMatchers("/actuator/health/**").permitAll()
@@ -68,3 +68,4 @@ class MorrowIdentityFilter(
         }
     }
 }
+
