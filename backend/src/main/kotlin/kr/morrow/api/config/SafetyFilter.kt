@@ -16,6 +16,7 @@ import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
@@ -25,6 +26,7 @@ class SafetyFilter(
 ) : OncePerRequestFilter() {
     private val log = LoggerFactory.getLogger(javaClass)
     private val fallback = ConcurrentHashMap<String, LocalBucket>()
+    private val fallbackRequests = AtomicLong()
 
     override fun doFilterInternal(request: HttpServletRequest, response: HttpServletResponse, chain: FilterChain) {
         val requestId = UUID.randomUUID().toString()
@@ -85,6 +87,12 @@ class SafetyFilter(
         } catch (error: Exception) {
             log.debug("Redis rate limiter unavailable; using local fallback", error)
             val minute = Instant.now().epochSecond / 60
+            // Redis is the normal shared limiter.  If it is unavailable, keep
+            // the per-process safety net bounded so a sustained outage cannot
+            // turn an attacker-controlled key space into a memory leak.
+            if (fallback.size > 10_000 && fallbackRequests.incrementAndGet() % 64L == 0L) {
+                fallback.entries.removeIf { it.value.minute != minute }
+            }
             val bucket = fallback.compute(key) { _, old ->
                 if (old == null || old.minute != minute) LocalBucket(minute) else old
             }!!
