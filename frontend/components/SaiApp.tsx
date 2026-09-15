@@ -167,12 +167,12 @@ export function SaiApp() {
   if (me) return <MorrowDashboard me={me} />;
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-white pb-[76px] text-[#171014] md:pb-0">
+    <main className="min-h-screen overflow-x-hidden bg-[var(--seed-bg-surface)] pb-[76px] text-[var(--seed-fg-strong)] md:pb-0">
       <div className="bg-[#ff5c77] px-4 py-2 text-center text-[11px] font-bold text-white sm:text-xs">
         만 20세 이상 · 실제 회원 데이터는 로그인 후에만 보여요
       </div>
 
-      <header className="sticky top-0 z-40 border-b border-[#f0e7ea] bg-white/95 backdrop-blur-xl">
+      <header className="sticky top-0 z-40 border-b border-[var(--seed-stroke-subtle)] bg-[var(--seed-bg-surface)]/95 backdrop-blur-xl">
         <div className="mx-auto flex h-[58px] max-w-[1180px] items-center gap-3 px-4 sm:px-6 lg:px-8">
           <a
             href="#top"
@@ -259,14 +259,14 @@ export function SaiApp() {
             <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-center">
               <a
                 href={loginHref}
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#ea365d] px-5 text-sm font-black text-white shadow-[0_12px_28px_rgba(234,54,93,.24)] transition hover:bg-[#d92e53] focus-visible:ring-2 focus-visible:ring-[#ea365d] focus-visible:ring-offset-2 lg:h-12"
+                className="seed-action seed-action-brand inline-flex h-12 items-center justify-center gap-2 rounded-xl px-5 text-sm font-black shadow-[0_12px_28px_rgba(234,54,93,.24)] focus-visible:ring-2 focus-visible:ring-[#ea365d] focus-visible:ring-offset-2 lg:h-12"
               >
                 내 취향으로 시작하기
                 <ArrowUpRight className="size-4" />
               </a>
               <a
                 href="#how"
-                className="inline-flex h-12 items-center justify-center rounded-xl border border-white/30 bg-white/10 px-5 text-sm font-bold text-white backdrop-blur-md transition hover:bg-white/20 lg:border-[#d9cdd0] lg:bg-white/70 lg:text-[#4e3d42] lg:hover:bg-white"
+                className="seed-action inline-flex h-12 items-center justify-center rounded-xl border border-white/30 bg-white/10 px-5 text-sm font-bold text-white backdrop-blur-md lg:border-[#d9cdd0] lg:bg-white/70 lg:text-[#4e3d42] lg:hover:bg-white"
               >
                 MORROW 방식 보기
               </a>
@@ -321,7 +321,7 @@ export function SaiApp() {
 
         <div className="mt-5 grid grid-flow-col auto-cols-[74px] gap-3 overflow-x-auto pb-1 [scrollbar-width:none] sm:grid-cols-6 sm:auto-cols-auto sm:gap-4 sm:overflow-visible [&::-webkit-scrollbar]:hidden">
           {quickDiscovery.map(({ icon: Icon, label, color }) => (
-            <a key={label} href={loginHref} className="group text-center">
+            <a key={label} href={loginHref} className="seed-action group rounded-2xl p-1 text-center">
               <span className={`mx-auto grid size-[62px] place-items-center rounded-[20px] transition group-hover:-translate-y-1 ${color}`}>
                 <Icon className="size-6" strokeWidth={2.2} />
               </span>
@@ -353,7 +353,7 @@ export function SaiApp() {
 
         <div className="mt-7 grid grid-cols-2 gap-x-3 gap-y-8 sm:gap-x-5 lg:grid-cols-4">
           {datePicks.map((pick) => (
-            <a key={pick.title} href={loginHref} className="group min-w-0">
+            <a key={pick.title} href={loginHref} className="seed-action group min-w-0 rounded-2xl">
               <div className="relative aspect-[4/5] overflow-hidden rounded-[18px] bg-[#f3edef] sm:rounded-[22px]">
                 <Image
                   src={pick.image}
@@ -401,7 +401,7 @@ export function SaiApp() {
 
             <div className="grid gap-3 sm:grid-cols-2">
               {connectionSteps.map(({ number, title, body, icon: Icon }) => (
-                <article key={number} className="rounded-[22px] border border-[#f0dedb] bg-white p-5 shadow-[0_12px_35px_rgba(107,58,67,.05)] sm:p-6">
+              <article key={number} className="seed-card seed-action rounded-[22px] p-5 sm:p-6">
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-black tracking-[.12em] text-[#ea365d]">{number}</span>
                     <span className="grid size-10 place-items-center rounded-[14px] bg-[#fff0f3] text-[#ea365d]"><Icon className="size-5" /></span>
@@ -427,7 +427,7 @@ export function SaiApp() {
 
           <div className="mt-8 grid gap-3 sm:mt-10 sm:gap-5 md:grid-cols-3">
             {coreFeatures.map(({ icon: Icon, label, title, body }) => (
-              <article key={label} className="rounded-[22px] border border-[#eee4e7] bg-white p-6 sm:p-8">
+              <article key={label} className="seed-card seed-action rounded-[22px] p-6 sm:p-8">
                 <span className="grid size-11 place-items-center rounded-[15px] bg-[#fff0f4] text-[#ed3261]">
                   <Icon className="size-5" />
                 </span>
@@ -498,7 +498,7 @@ export function SaiApp() {
       </footer>
 
       <nav
-        className="fixed inset-x-0 bottom-0 z-50 grid h-[68px] grid-cols-5 border-t border-[#eee7e9] bg-white px-2 pb-[env(safe-area-inset-bottom)] md:hidden"
+        className="fixed inset-x-0 bottom-0 z-50 grid h-[68px] grid-cols-5 border-t border-[var(--seed-stroke-subtle)] bg-[var(--seed-bg-surface)] px-2 pb-[env(safe-area-inset-bottom)] md:hidden"
         aria-label="모바일 하단 메뉴"
       >
         <MobileNavItem href="#top" icon={Home} label="홈" active />
@@ -534,3 +534,4 @@ function MobileNavItem({
     </a>
   );
 }
+
