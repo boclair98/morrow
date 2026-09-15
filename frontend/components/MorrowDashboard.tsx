@@ -1424,6 +1424,7 @@ function FeedProfileCard({
   const [menu, setMenu] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [whyOpen, setWhyOpen] = useState(false);
   const photo = profile.photos[0];
   async function safety(action: "block" | "fake_profile" | "money_request") {
     if (busy) return;
@@ -1555,6 +1556,35 @@ function FeedProfileCard({
               </span>
             ))}
         </div>
+        <button
+          type="button"
+          onClick={() => setWhyOpen((open) => !open)}
+          aria-expanded={whyOpen}
+          className="seed-action mt-3 inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-[#fff8f6] px-2.5 text-[11px] font-bold text-[#8a5c62] hover:bg-[#fff0f3]"
+        >
+          <Sparkles className="size-3.5 text-[#ea365d]" />
+          {whyOpen ? "추천 이유 접기" : "왜 추천됐나요?"}
+          <ChevronRight className={`size-3.5 transition-transform ${whyOpen ? "rotate-90" : ""}`} />
+        </button>
+        {whyOpen ? (
+          <div className="mt-2 rounded-xl border border-[#f0e3df] bg-[#fffaf8] p-3 text-[11px] leading-5 text-[#6f5c60]">
+            <p className="font-bold text-[#4f3d42]">
+              {profile.match_reasons[0] || "공통점이 있어 대화를 시작하기 좋아요."}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {profile.common_times.slice(0, 2).map((time) => (
+                <span key={time} className="seed-chip bg-[#f1f8f5] text-[#39785f]">
+                  {time}
+                </span>
+              ))}
+              {profile.common_interests.slice(0, 3).map((interest) => (
+                <span key={interest} className="seed-chip bg-[#f7f1ef] text-[#66585b]">
+                  #{interest}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
         <div className="mt-3 flex items-center gap-1.5 border-t border-[#eee5e3] pt-3">
           <p className="flex min-w-0 items-center gap-1.5 truncate text-[11px] font-bold text-[#333]">
             <CalendarDays className="size-3.5 shrink-0 text-[#ff385c]" />
@@ -3425,6 +3455,7 @@ function DatePlanner({
   const [copied, setCopied] = useState(false);
   const [feedbackPlanId, setFeedbackPlanId] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [feedback, setFeedback] = useState({
     attended: true,
     felt_safe: true,
@@ -3442,6 +3473,7 @@ function DatePlanner({
     event.preventDefault();
     if (!scheduledFor || saving) return;
     setSaving(true);
+    setStatusMessage(null);
     try {
       const result = await createDatePlan(matchId, {
         title,
@@ -3457,24 +3489,23 @@ function DatePlanner({
       });
       onPlansChange([...plans, result.item]);
       setNote("");
+      setStatusMessage("약속 제안을 보냈어요.");
     } catch (error) {
-      window.alert(
-        error instanceof Error ? error.message : "약속을 제안하지 못했어요",
-      );
+      setStatusMessage(error instanceof Error ? error.message : "약속을 제안하지 못했어요");
     } finally {
       setSaving(false);
     }
   }
   async function respond(plan: DatePlan, status: "accepted" | "declined") {
+    setStatusMessage(null);
     try {
       const result = await respondDatePlan(matchId, plan.id, status);
       onPlansChange(
         plans.map((item) => (item.id === plan.id ? result.item : item)),
       );
+      setStatusMessage(status === "accepted" ? "약속을 수락했어요." : "이번 제안을 보류했어요.");
     } catch (error) {
-      window.alert(
-        error instanceof Error ? error.message : "응답하지 못했어요",
-      );
+      setStatusMessage(error instanceof Error ? error.message : "응답하지 못했어요");
     }
   }
   async function shareAccepted() {
@@ -3491,19 +3522,20 @@ function DatePlanner({
     }
   }
   async function confirmSafe(plan: DatePlan) {
+    setStatusMessage(null);
     try {
       const result = await confirmDateSafe(matchId, plan.id);
       onPlansChange(
         plans.map((item) => (item.id === plan.id ? result.item : item)),
       );
+      setStatusMessage("안전 확인을 저장했어요.");
     } catch (error) {
-      window.alert(
-        error instanceof Error ? error.message : "안전 확인을 저장하지 못했어요",
-      );
+      setStatusMessage(error instanceof Error ? error.message : "안전 확인을 저장하지 못했어요");
     }
   }
   async function sendFeedback(plan: DatePlan) {
     setSaving(true);
+    setStatusMessage(null);
     try {
       const result = await submitDateFeedback(matchId, plan.id, feedback);
       onPlansChange(
@@ -3513,20 +3545,34 @@ function DatePlanner({
       );
       setFeedbackPlanId(null);
       if (result.safety_follow_up_recommended) {
-        window.alert(
-          "안전하지 않았다고 남겨주셨어요. 필요하면 안전센터에서 상대를 차단하거나 신고해주세요.",
-        );
+        setStatusMessage("안전하지 않았다고 남겨주셨어요. 필요하면 안전센터에서 상대를 차단하거나 신고해주세요.");
+      } else {
+        setStatusMessage("만남 기록을 저장했어요. 소중한 피드백 고마워요.");
       }
     } catch (error) {
-      window.alert(
-        error instanceof Error ? error.message : "만남 기록을 저장하지 못했어요",
-      );
+      setStatusMessage(error instanceof Error ? error.message : "만남 기록을 저장하지 못했어요");
     } finally {
       setSaving(false);
     }
   }
   return (
     <div className="flex-1 overflow-y-auto p-5">
+      {statusMessage ? (
+        <div
+          role="status"
+          className="mb-3 flex items-start justify-between gap-3 rounded-xl border border-[#eadfdc] bg-[#fffaf8] px-3.5 py-3 text-xs font-bold text-[#5e4b50]"
+        >
+          <span>{statusMessage}</span>
+          <button
+            type="button"
+            onClick={() => setStatusMessage(null)}
+            className="shrink-0 text-[#9a868b]"
+            aria-label="안내 닫기"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+      ) : null}
       <div className="rounded-2xl bg-gradient-to-br from-[#fff0ed] to-[#f2edff] p-5">
         <p className="flex items-center gap-2 text-xs font-black tracking-[.12em] text-[#e95760]">
           <Sparkles className="size-3.5" />
