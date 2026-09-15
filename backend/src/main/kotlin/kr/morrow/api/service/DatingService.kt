@@ -367,12 +367,23 @@ class DatingService(
     }
 
     @Transactional
-    fun messages(userId: UUID, matchId: UUID, limit: Int): Map<String, Any> {
+    fun messages(userId: UUID, matchId: UUID, limit: Int, before: Instant?): Map<String, Any?> {
         val user = userService.current(userId)
         ownedMatch(matchId, user.id)
-        val rows = messages.findByMatchIdOrderByCreatedAtDesc(matchId, PageRequest.of(0, limit)).reversed()
+        val pageSize = limit.coerceIn(1, 50)
+        val rows = if (before == null) {
+            messages.findByMatchIdOrderByCreatedAtDesc(matchId, PageRequest.of(0, pageSize + 1))
+        } else {
+            messages.findByMatchIdAndCreatedAtBeforeOrderByCreatedAtDesc(matchId, before, PageRequest.of(0, pageSize + 1))
+        }
+        val hasMore = rows.size > pageSize
+        val visible = rows.take(pageSize).reversed()
         messages.markRead(matchId, user.id, Instant.now())
-        return mapOf("items" to rows.map { messageItem(it, user.id) })
+        return mapOf(
+            "items" to visible.map { messageItem(it, user.id) },
+            "has_more" to hasMore,
+            "next_before" to visible.firstOrNull()?.createdAt,
+        )
     }
 
     @Transactional
