@@ -356,8 +356,12 @@ export const sendSwipe = (targetId: string, decision: "like" | "pass") =>
     method: "POST", body: JSON.stringify({ target_id: targetId, decision }),
   });
 export const fetchMatches = () => api<{ items: MatchItem[] }>("/api/matches?limit=30");
-export const fetchMessages = (matchId: string) =>
-  api<{ items: ChatMessage[] }>(`/api/matches/${matchId}/messages`);
+export const fetchMessages = (matchId: string, before?: string) => {
+  const query = before ? `?before=${encodeURIComponent(before)}` : "";
+  return api<{ items: ChatMessage[]; has_more: boolean; next_before: string | null }>(
+    `/api/matches/${matchId}/messages${query}`,
+  );
+};
 export const sendMessage = (
   matchId: string,
   body: string,
