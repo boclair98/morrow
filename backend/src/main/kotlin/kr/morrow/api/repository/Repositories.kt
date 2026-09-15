@@ -116,6 +116,7 @@ interface MatchRepository : JpaRepository<MatchEntity, UUID> {
 interface MessageRepository : JpaRepository<MessageEntity, UUID> {
     fun findBySenderIdAndClientId(senderId: UUID, clientId: UUID): MessageEntity?
     fun findByMatchIdOrderByCreatedAtDesc(matchId: UUID, pageable: Pageable): List<MessageEntity>
+    fun findByMatchIdAndCreatedAtBeforeOrderByCreatedAtDesc(matchId: UUID, createdAt: Instant, pageable: Pageable): List<MessageEntity>
     fun findFirstByMatchIdOrderByCreatedAtDesc(matchId: UUID): MessageEntity?
     fun countByMatchIdAndSenderIdNotAndReadAtIsNull(matchId: UUID, senderId: UUID): Long
     fun findByMatchIdInOrderByCreatedAtAsc(matchIds: Collection<UUID>, pageable: Pageable): List<MessageEntity>
