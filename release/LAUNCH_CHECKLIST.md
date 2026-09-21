@@ -32,6 +32,7 @@
 - 본인·휴대폰·성인 인증 공급자의 client ID/secret과 webhook secret (대규모 공개 모집 전; 현재는 소셜 계정 기반 수동 검토 큐 사용)
 
 웹 OAuth는 `state`, Google PKCE, 일회성 흐름, 계정 충돌 방지, 해시 세션과 로그아웃 폐기까지 구현되어 standalone identity로 전환합니다. Apple 심사 대상 iOS 앱에서 다른 소셜 로그인을 제공하면 Sign in with Apple 요구사항도 함께 확인합니다.
+Cloudflare Turnstile은 스크립트 로드 완료 후 명시적으로 렌더링하며, 토큰 준비 전 OAuth 버튼을 비활성화하고 만료·실패 시 재시도합니다. 공개 전 `morrow.coders.kr` hostname 등록, 실제 위젯 site/secret key 쌍, 카카오·네이버·Google 각각의 redirect URI를 두 개의 실제 테스트 계정으로 검증합니다.
 
 ### 운영·메시징 API
 

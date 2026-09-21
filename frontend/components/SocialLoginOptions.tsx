@@ -16,12 +16,15 @@ type TurnstileApi = {
     target: HTMLElement,
     options: {
       sitekey: string;
+      action?: string;
+      language?: string;
       theme: "light";
       appearance: "always";
       size: "flexible";
       callback: (token: string) => void;
       "expired-callback": () => void;
-      "error-callback": () => void;
+      "timeout-callback": () => void;
+      "error-callback": (errorCode?: string) => boolean;
     },
   ) => string;
   reset: (widgetId: string) => void;
@@ -63,6 +66,11 @@ export function SocialLoginOptions() {
   const [token, setToken] = useState("");
   const [busy, setBusy] = useState<AuthProvider["id"] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [turnstileState, setTurnstileState] = useState<"loading" | "ready" | "error" | "disabled">(
+    bootstrapConfig.turnstile_required ? "loading" : "disabled",
+  );
+  const [turnstileLoaded, setTurnstileLoaded] = useState(false);
+  const [turnstileScriptAttempt, setTurnstileScriptAttempt] = useState(0);
   const widgetHost = useRef<HTMLDivElement>(null);
   const widgetId = useRef<string | null>(null);
 
@@ -96,38 +104,76 @@ export function SocialLoginOptions() {
       !config?.turnstile_required ||
       !config.turnstile_site_key ||
       !window.turnstile ||
+      !turnstileLoaded ||
       !widgetHost.current ||
       widgetId.current
     ) {
+      if (!config?.turnstile_required) setTurnstileState("disabled");
       return;
     }
+    setTurnstileState("loading");
+    if (!widgetHost.current || widgetId.current || !window.turnstile) return;
     widgetId.current = window.turnstile.render(widgetHost.current, {
       sitekey: config.turnstile_site_key,
+      action: "social_login",
+      language: "ko",
       theme: "light",
       appearance: "always",
       size: "flexible",
-      callback: setToken,
-      "expired-callback": () => setToken(""),
-      "error-callback": () => {
+      callback: (nextToken) => {
+        setToken(nextToken);
+        setTurnstileState("ready");
+        setError(null);
+      },
+      "expired-callback": () => {
         setToken("");
-        setError("보안 확인을 불러오지 못했어요. 새로고침 후 다시 시도해주세요.");
+        setTurnstileState("loading");
+        setError("보안 확인이 만료됐어요. 다시 확인해주세요.");
+      },
+      "timeout-callback": () => {
+        setToken("");
+        setTurnstileState("error");
+        setError("보안 확인 시간이 초과됐어요. 아래에서 다시 시도해주세요.");
+      },
+      "error-callback": (errorCode) => {
+        setToken("");
+        setTurnstileState("error");
+        setError(
+          errorCode
+            ? `보안 확인에 실패했어요 (${errorCode}). 다시 시도해주세요.`
+            : "보안 확인에 실패했어요. 다시 시도해주세요.",
+        );
+        return true;
       },
     });
-  }, [config]);
+  }, [config, turnstileLoaded]);
 
   useEffect(() => {
-    renderTurnstile();
+    const renderTimer = window.setTimeout(() => renderTurnstile(), 0);
     return () => {
+      window.clearTimeout(renderTimer);
       if (widgetId.current && window.turnstile) {
         window.turnstile.remove(widgetId.current);
         widgetId.current = null;
       }
     };
-  }, [renderTurnstile]);
+  }, [renderTurnstile, turnstileLoaded]);
+
+  function retryTurnstile() {
+    setError(null);
+    setToken("");
+    setTurnstileState("loading");
+    if (widgetId.current && window.turnstile) {
+      window.turnstile.reset(widgetId.current);
+      return;
+    }
+    setTurnstileLoaded(false);
+    setTurnstileScriptAttempt((attempt) => attempt + 1);
+  }
 
   async function start(provider: AuthProvider) {
     if (!provider.configured || busy) return;
-    if (config?.turnstile_required && !token) {
+    if (config?.turnstile_required && (turnstileState !== "ready" || !token)) {
       setError("보안 확인이 끝난 뒤 로그인 버튼을 눌러주세요.");
       return;
     }
@@ -163,9 +209,14 @@ export function SocialLoginOptions() {
     <section id="login" className="mt-5 max-w-[390px] scroll-mt-24" aria-labelledby="social-login-title">
       {config?.turnstile_required ? (
         <Script
+          key={`turnstile-${turnstileScriptAttempt}`}
           src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
           strategy="afterInteractive"
-          onLoad={renderTurnstile}
+          onLoad={() => setTurnstileLoaded(true)}
+          onError={() => {
+            setTurnstileState("error");
+            setError("보안 확인 스크립트를 불러오지 못했어요. 아래에서 다시 시도해주세요.");
+          }}
         />
       ) : null}
       <div className="mb-3 flex items-center gap-3 text-[11px] font-semibold text-[#888]">
@@ -177,6 +228,20 @@ export function SocialLoginOptions() {
         <div className="mb-3 overflow-hidden rounded-lg border border-[#e5e5e5] bg-[#fafafa] p-2">
           <p className="mb-2 text-[10px] font-bold text-[#777]">자동 가입 방지 확인</p>
           <div ref={widgetHost} className="min-h-[65px]" />
+          {turnstileState === "loading" ? (
+            <p className="mt-1 text-[11px] font-semibold text-[#8b7b81]" aria-live="polite">
+              보안 확인을 불러오는 중이에요…
+            </p>
+          ) : null}
+          {turnstileState === "error" ? (
+            <button
+              type="button"
+              onClick={retryTurnstile}
+              className="mt-2 h-9 w-full rounded-md border border-[#d8c8cc] bg-white px-3 text-xs font-extrabold text-[#5b454c] transition hover:border-[#ea365d] hover:text-[#ea365d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ea365d]"
+            >
+              보안 확인 다시 시도
+            </button>
+          ) : null}
         </div>
       ) : null}
       <div className="space-y-2">
@@ -194,7 +259,7 @@ export function SocialLoginOptions() {
               key={provider.id}
               type="button"
               onClick={() => start(provider)}
-              disabled={!active || Boolean(busy)}
+              disabled={!active || Boolean(busy) || (config.turnstile_required && turnstileState !== "ready")}
               className={`flex h-12 w-full items-center justify-center gap-3 rounded-lg border text-sm font-extrabold transition disabled:cursor-not-allowed disabled:opacity-45 ${palette}`}
             >
               <span className="grid size-6 place-items-center rounded-full bg-black/10 text-xs font-black">
