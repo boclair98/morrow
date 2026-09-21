@@ -164,6 +164,18 @@ function avatarGradient(value: string) {
   return gradients[value.charCodeAt(0) % gradients.length];
 }
 
+function profileQuality(me: Me) {
+  const items = [
+    { key: "photo", label: "대표 사진", done: me.photos.some((photo) => photo.moderation_status !== "rejected") },
+    { key: "bio", label: "짧은 소개", done: Boolean(me.bio?.trim()) },
+    { key: "interests", label: "관심사", done: me.interests.length >= 3 },
+    { key: "time", label: "가능한 시간", done: me.availability.length > 0 },
+    { key: "verified", label: "본인 확인", done: me.verification_status === "verified" },
+  ];
+  const completed = items.filter((item) => item.done).length;
+  return { items, completed, total: items.length, percent: Math.round((completed / items.length) * 100) };
+}
+
 const ONBOARDING_DRAFT_VERSION = 1;
 
 function onboardingDraftKey(codersId: string) {
@@ -572,6 +584,7 @@ export function MorrowDashboard({ me }: { me: Me }) {
   const unreadNotifications = notifications.filter(
     (item) => !item.read_at,
   ).length;
+  const quality = profileQuality(me);
 
   return (
     <main className="morrow-dashboard min-h-screen bg-[#fffdfb] text-[#21191b]">
@@ -698,6 +711,12 @@ export function MorrowDashboard({ me }: { me: Me }) {
             }}
           />
         )}
+        {tab === "discover" && quality.completed < quality.total ? (
+          <ProfileQualityBanner
+            quality={quality}
+            onOpenProfile={() => setTab("profile")}
+          />
+        ) : null}
         {tab === "discover" && (
           <DiscoverFeed
             profiles={profiles}
@@ -1168,7 +1187,7 @@ function DiscoverFeed({
             </span>
           </div>
         </article>
-        <div className="relative min-h-[300px] bg-[#2a2a2a]">
+        <div className="relative min-h-[300px] overflow-hidden bg-[#2a2a2a]">
           {featured?.photos[0] ? (
             <Image
               src={featured.photos[0].url}
@@ -1180,7 +1199,24 @@ function DiscoverFeed({
               className="object-cover"
             />
           ) : (
-            <div className="absolute inset-0 morrow-dot-grid" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,157,176,.38),transparent_34%),linear-gradient(145deg,#2b2227_0%,#5a3444_52%,#1c1820_100%)]">
+              <div className="absolute -right-16 -top-16 size-64 rounded-full border-[28px] border-white/10" />
+              <div className="absolute -bottom-20 -left-10 size-56 rounded-full border-[22px] border-[#ff9db0]/15" />
+              <div className="absolute inset-0 flex flex-col justify-end p-7 sm:p-10">
+                <div className="grid size-12 place-items-center rounded-2xl bg-white/12 text-[#ffb4c1] backdrop-blur">
+                  <Sparkles className="size-6" />
+                </div>
+                <p className="mt-5 text-lg font-black">새로운 연결을 준비하고 있어요</p>
+                <p className="mt-2 max-w-xs text-sm font-medium leading-6 text-white/65">
+                  사진을 등록한 회원부터 순서대로 소개해드려요. 프로필을 완성하면 추천 우선순위가 높아져요.
+                </p>
+                <div className="mt-5 flex flex-wrap gap-2 text-[11px] font-bold text-white/75">
+                  <span className="rounded-full border border-white/15 bg-white/10 px-3 py-2">실제 회원만</span>
+                  <span className="rounded-full border border-white/15 bg-white/10 px-3 py-2">시간 먼저</span>
+                  <span className="rounded-full border border-white/15 bg-white/10 px-3 py-2">안전한 대화</span>
+                </div>
+              </div>
+            </div>
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent" />
           {featured && (
@@ -1268,7 +1304,12 @@ function DiscoverFeed({
           ))}
         </div>
       ) : (
-        <EmptyDiscover loading={loading} onRetry={onRefresh} />
+        <EmptyDiscover
+          loading={loading}
+          onRetry={onRefresh}
+          onBroaden={() => onFilter()}
+          hasFilters={Object.keys(filters).length > 0}
+        />
       )}
       {preview ? (
         <ProfilePreview
@@ -2031,9 +2072,13 @@ function PhotoVisual({ profile }: { profile: DiscoverProfile }) {
 function EmptyDiscover({
   loading,
   onRetry,
+  onBroaden,
+  hasFilters = false,
 }: {
   loading: boolean;
   onRetry: () => void;
+  onBroaden?: () => void;
+  hasFilters?: boolean;
 }) {
   return (
     <div className="grid min-h-[540px] place-items-center rounded-[30px] border border-dashed border-[#ddd2cc] bg-white p-8 text-center">
@@ -2044,23 +2089,69 @@ function EmptyDiscover({
           <>
             <Sparkles className="mx-auto size-9 text-[#d1c4be]" />
             <h2 className="mt-5 text-xl font-black">
-              오늘의 추천을 모두 확인했어요
+              {hasFilters ? "조건을 조금만 넓혀볼까요?" : "새로운 연결을 준비하고 있어요"}
             </h2>
             <p className="mt-2 text-sm font-medium leading-6 text-[#8c817b]">
-              새로운 프로필이 준비되면 다시 알려드릴게요.
-              <br />
-              MORROW는 하루에 소수만 깊게 추천해요.
+              {hasFilters
+                ? "지역·시간·취향 조건을 완화하면 지금 만날 수 있는 회원을 더 넓게 확인할 수 있어요."
+                : "새 회원이 준비되면 다시 알려드릴게요. 프로필을 완성한 회원부터 안전하게 추천합니다."}
             </p>
-            <button
-              onClick={onRetry}
-              className="mt-6 rounded-xl border border-[#e4dcd8] px-5 py-3 text-sm font-black"
-            >
-              다시 확인
-            </button>
+            <div className="mt-6 flex flex-wrap justify-center gap-2">
+              {onBroaden ? (
+                <button
+                  onClick={onBroaden}
+                  className="min-h-11 rounded-xl bg-[#21191b] px-5 py-3 text-sm font-black text-white"
+                >
+                  조건 넓히기
+                </button>
+              ) : null}
+              <button
+                onClick={onRetry}
+                className="min-h-11 rounded-xl border border-[#e4dcd8] px-5 py-3 text-sm font-black"
+              >
+                다시 확인
+              </button>
+            </div>
           </>
         )}
       </div>
     </div>
+  );
+}
+
+function ProfileQualityBanner({
+  quality,
+  onOpenProfile,
+}: {
+  quality: ReturnType<typeof profileQuality>;
+  onOpenProfile: () => void;
+}) {
+  const next = quality.items.find((item) => !item.done);
+  return (
+    <section className="mb-6 overflow-hidden rounded-[24px] border border-[#f0d9de] bg-gradient-to-r from-[#fff5f6] via-white to-[#f5f2ff] p-5 shadow-[0_12px_36px_rgba(109,69,80,.06)] sm:p-6">
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-[#ff385c] px-2.5 py-1 text-[10px] font-black text-white">PROFILE BOOST</span>
+            <span className="text-xs font-bold text-[#7e6e73]">추천 신뢰도 {quality.percent}%</span>
+          </div>
+          <h2 className="mt-2 text-lg font-black tracking-[-.02em]">{next?.label || "프로필"}을 채우면 더 잘 연결돼요</h2>
+          <p className="mt-1 text-sm font-medium leading-6 text-[#88797e]">
+            사진·취향·가능 시간이 선명할수록 상대가 안심하고 대화를 시작할 확률이 높아져요.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {quality.items.map((item) => (
+              <span key={item.key} className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 text-[11px] font-bold ${item.done ? "bg-[#eaf7f0] text-[#21815d]" : "bg-white text-[#9c858b]"}`}>
+                <Check className={`size-3 ${item.done ? "" : "opacity-30"}`} /> {item.label}
+              </span>
+            ))}
+          </div>
+        </div>
+        <button type="button" onClick={onOpenProfile} className="min-h-11 shrink-0 rounded-xl bg-[#21191b] px-5 py-3 text-sm font-black text-white shadow-[0_8px_18px_rgba(33,25,27,.12)]">
+          프로필 다듬기
+        </button>
+      </div>
+    </section>
   );
 }
 
