@@ -159,6 +159,16 @@ export function SocialLoginOptions() {
     };
   }, [renderTurnstile, turnstileLoaded]);
 
+  useEffect(() => {
+    if (!config?.turnstile_required || turnstileLoaded || widgetId.current) return;
+    const watchdog = window.setTimeout(() => {
+      if (widgetId.current || turnstileLoaded) return;
+      setTurnstileState("error");
+      setError("보안 확인이 응답하지 않아요. 잠시 후 다시 시도해주세요.");
+    }, 8_000);
+    return () => window.clearTimeout(watchdog);
+  }, [config?.turnstile_required, turnstileLoaded]);
+
   function retryTurnstile() {
     setError(null);
     setToken("");
