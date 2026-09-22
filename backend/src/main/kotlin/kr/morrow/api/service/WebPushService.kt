@@ -74,7 +74,8 @@ class WebPushService(
         }.getOrNull() ?: return
         targets.forEach { subscription ->
             runCatching {
-                push.send(
+                deliver(
+                    push,
                     Notification(
                         subscription.endpoint,
                         subscription.p256dh,
@@ -86,6 +87,16 @@ class WebPushService(
                 subscription.lastUsedAt = Instant.now()
             }
         }
+    }
+
+    /**
+     * web-push-java exposes Apache HttpResponse in PushService.send's return
+     * signature, but that legacy type is intentionally not on our application
+     * compile classpath. Reflection keeps the delivery boundary isolated while
+     * still invoking the library's public one-argument send method.
+     */
+    private fun deliver(push: PushService, notification: Notification) {
+        push.javaClass.getMethod("send", Notification::class.java).invoke(push, notification)
     }
 
     private fun actionUrl(item: NotificationEntity): String = when (item.actionType) {
