@@ -237,6 +237,7 @@ export function SaiApp() {
             alt="밝은 거리에서 첫 데이트를 시작하는 두 성인의 캠페인 장면"
             fill
             priority
+            loading="eager"
             sizes="(max-width: 1180px) 100vw, 1120px"
             className="object-cover object-[68%_center] sm:object-center"
           />

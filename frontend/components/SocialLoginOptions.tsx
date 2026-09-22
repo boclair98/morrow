@@ -43,8 +43,11 @@ declare global {
 // background and remains the authority for whether a login can actually start.
 const bootstrapConfig: AuthConfiguration = {
   native: null,
-  turnstile_required: true,
-  turnstile_site_key: "0x4AAAAAAEZAIL-BxPmnHCt2",
+  // The backend remains authoritative. Keeping this false prevents a cold
+  // backend or a blocked third-party script from leaving every OAuth button
+  // disabled before `/api/auth/providers` can refresh the real configuration.
+  turnstile_required: false,
+  turnstile_site_key: null,
   kakao_map_js_key: null,
   providers: [
     { id: "kakao", label: "카카오", configured: true, status: "active" },
@@ -89,7 +92,11 @@ export function SocialLoginOptions() {
     let active = true;
     fetchAuthProviders()
       .then((nextConfig) => {
-        if (active) setConfig(nextConfig);
+        if (active) {
+          setConfig(nextConfig);
+          setTurnstileState(nextConfig.turnstile_required ? "loading" : "disabled");
+          setToken("");
+        }
       })
       // Bootstrap data keeps the controls usable while the backend wakes. A
       // failed refresh is handled authoritatively by the login-start endpoint.

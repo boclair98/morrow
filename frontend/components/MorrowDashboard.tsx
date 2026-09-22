@@ -36,6 +36,7 @@ import { NotificationCenter } from "@/components/NotificationCenter";
 import { compressImage, ProfilePhotos } from "@/components/ProfilePhotos";
 import { ProfileEditor } from "@/components/ProfileEditor";
 import { PlacePicker } from "@/components/PlacePicker";
+import { DateCourseStudio, type DateCourseSuggestion } from "@/components/DateCourseStudio";
 import { SafetyCenter } from "@/components/SafetyCenter";
 import { MatchSyncPanel } from "@/components/MatchSyncPanel";
 import {
@@ -111,37 +112,42 @@ const discoveryCategories = [
   {
     icon: Sparkles,
     label: "추천",
-    value: "전체",
+    value: "추천",
     description: "나를 위한 큐레이션",
   },
   {
     icon: CalendarDays,
-    label: "내 시간",
-    value: "내 시간",
+    label: "이번 주",
+    value: "이번 주",
     description: "공통 시간이 먼저",
   },
-  { icon: MapPin, label: "성수", value: "성수", description: "전시와 카페" },
-  { icon: MapPin, label: "연남", value: "연남", description: "산책과 맛집" },
+  { icon: Heart, label: "같은 취향", value: "같은 취향", description: "공통 관심사가 많은 사람" },
   {
     icon: MapPin,
-    label: "한남",
-    value: "한남",
-    description: "분위기 좋은 곳",
+    label: "우리 동네",
+    value: "우리 동네",
+    description: "내 활동 지역 중심",
+  },
+  {
+    icon: Users,
+    label: "전국",
+    value: "전국",
+    description: "지역 제한 없이 보기",
   },
   {
     icon: ImageIcon,
-    label: "사진 있음",
-    value: "사진 있는 사람",
+    label: "사진 프로필",
+    value: "사진 프로필",
     description: "검수된 사진 프로필",
   },
 ] as const;
 const discoveryTabs = [
-  "전체",
-  "내 시간",
-  "성수",
-  "연남",
-  "한남",
-  "사진 있는 사람",
+  "추천",
+  "이번 주",
+  "같은 취향",
+  "우리 동네",
+  "전국",
+  "사진 프로필",
 ] as const;
 
 function pendingReferralCode(): string {
@@ -287,7 +293,7 @@ export function MorrowDashboard({ me }: { me: Me }) {
   const [filters, setFilters] = useState<DiscoverFilters>({});
   const [hasMoreProfiles, setHasMoreProfiles] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
-  const [feedTab, setFeedTab] = useState("전체");
+  const [feedTab, setFeedTab] = useState("추천");
   const discoverAbortRef = useRef<AbortController | null>(null);
   const savedBusyRef = useRef(new Set<string>());
   const current = profiles[0];
@@ -533,11 +539,15 @@ export function MorrowDashboard({ me }: { me: Me }) {
 
   function selectFeedTab(tab: string) {
     setFeedTab(tab);
-    if (tab === "전체") setFilters({});
-    else if (tab === "내 시간")
+    if (tab === "추천" || tab === "전국") setFilters({});
+    else if (tab === "이번 주")
       setFilters({ availability: me.availability[0] });
-    else if (tab === "사진 있는 사람") setFilters({ photo_only: true });
-    else setFilters({ area: tab });
+    else if (tab === "같은 취향")
+      setFilters({ interest: me.interests[0] });
+    else if (tab === "사진 프로필") setFilters({ photo_only: true });
+    else if (tab === "우리 동네" && me.area && me.area !== "전국")
+      setFilters({ area: me.area });
+    else setFilters({});
   }
 
   async function selectNotification(item: NotificationItem) {
@@ -1057,6 +1067,7 @@ export function MorrowDashboard({ me }: { me: Me }) {
       {selectedMatch && (
         <ChatDrawer
           match={selectedMatch}
+          viewer={me}
           currentUserId={me.id}
           initialView={selectedMatchView}
           onClose={() => {
@@ -2916,12 +2927,14 @@ function SafetyPanel() {
 
 function ChatDrawer({
   match,
+  viewer,
   currentUserId,
   initialView,
   onClose,
   onEnded,
 }: {
   match: MatchItem;
+  viewer: Me;
   currentUserId: string;
   initialView: DrawerView;
   onClose: () => void;
@@ -3553,6 +3566,8 @@ function ChatDrawer({
         ) : (
           <DatePlanner
             matchId={match.id}
+            partner={match.person}
+            viewer={viewer}
             plans={plans}
             onPlansChange={setPlans}
           />
@@ -3564,15 +3579,24 @@ function ChatDrawer({
 
 function DatePlanner({
   matchId,
+  partner,
+  viewer,
   plans,
   onPlansChange,
 }: {
   matchId: string;
+  partner: DiscoverProfile;
+  viewer: Me;
   plans: DatePlan[];
   onPlansChange: (plans: DatePlan[]) => void;
 }) {
+  const defaultArea = partner.area !== "전국"
+    ? partner.area
+    : viewer.area && viewer.area !== "전국"
+      ? viewer.area
+      : "서울";
   const [title, setTitle] = useState("카페에서 천천히 이야기하기");
-  const [area, setArea] = useState("성수");
+  const [area, setArea] = useState(defaultArea);
   const [scheduledFor, setScheduledFor] = useState("");
   const [note, setNote] = useState("");
   const [selectedPlace, setSelectedPlace] = useState<KakaoPlace | null>(null);
@@ -3708,6 +3732,16 @@ function DatePlanner({
           연락처를 교환하기 전에, 서로 가능한 시간과 장소부터 가볍게 맞춰보세요.
         </p>
       </div>
+      <DateCourseStudio
+        area={area}
+        partnerName={partner.display_name}
+        commonInterests={partner.common_interests}
+        onPick={(suggestion: DateCourseSuggestion) => {
+          setTitle(suggestion.title);
+          setNote(suggestion.note);
+          setStatusMessage("공통 취향으로 코스를 채웠어요. 장소와 시간을 확인해 주세요.");
+        }}
+      />
       {accepted && (
         <div className="mt-4 rounded-2xl border border-[#bfe3d0] bg-[#f0fbf5] p-4">
           <div className="flex items-start gap-3">
@@ -4145,4 +4179,3 @@ function Agreement({
     </div>
   );
 }
-
