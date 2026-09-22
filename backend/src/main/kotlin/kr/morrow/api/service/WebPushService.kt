@@ -81,7 +81,6 @@ class WebPushService(
                         subscription.p256dh,
                         subscription.auth,
                         payload,
-                        86_400,
                     ),
                 )
                 subscription.lastUsedAt = Instant.now()
