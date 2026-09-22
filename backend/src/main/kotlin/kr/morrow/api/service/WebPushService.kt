@@ -8,10 +8,12 @@ import kr.morrow.api.repository.UserRepository
 import kr.morrow.api.web.PushSubscriptionRequest
 import nl.martijndwars.webpush.Notification
 import nl.martijndwars.webpush.PushService
+import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
 import java.net.URI
+import java.security.Security
 import java.time.Instant
 import java.util.Base64
 import java.util.UUID
@@ -23,6 +25,10 @@ class WebPushService(
     private val properties: MorrowProperties,
     private val objectMapper: ObjectMapper,
 ) {
+    init {
+        Security.addProvider(BouncyCastleProvider())
+    }
+
     val enabled: Boolean
         get() = properties.pushVapidPublicKey.isNotBlank() && properties.pushVapidPrivateKey.isNotBlank()
 
