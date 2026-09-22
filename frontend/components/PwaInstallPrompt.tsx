@@ -3,9 +3,17 @@
 import { Bell, Download, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { fetchPushConfig, savePushSubscription } from "@/lib/api";
 import { useMe } from "@/lib/identity";
 
 type InstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: "accepted" | "dismissed" }> };
+
+function urlBase64ToUint8Array(value: string): Uint8Array {
+  const padding = "=".repeat((4 - (value.length % 4)) % 4);
+  const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = window.atob(base64);
+  return Uint8Array.from([...raw].map((character) => character.charCodeAt(0)));
+}
 
 export function PwaInstallPrompt() {
   const me = useMe();
@@ -40,10 +48,41 @@ export function PwaInstallPrompt() {
   }
 
   async function enableNotifications() {
-    if (!("Notification" in window)) return;
-    const permission = await Notification.requestPermission();
-    setNotificationVisible(false);
-    if (permission === "granted") window.dispatchEvent(new CustomEvent("morrow:notice", { detail: "새 매치와 메시지 알림을 켰어요" }));
+    if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+      setNotificationVisible(false);
+      window.dispatchEvent(new CustomEvent("morrow:notice", { detail: "이 브라우저는 웹 푸시를 지원하지 않아요" }));
+      return;
+    }
+    try {
+      const config = await fetchPushConfig();
+      if (!config.public_key) {
+        setNotificationVisible(false);
+        window.dispatchEvent(new CustomEvent("morrow:notice", { detail: "알림 서버를 준비 중이에요. 잠시 후 다시 시도해주세요" }));
+        return;
+      }
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setNotificationVisible(false);
+        window.dispatchEvent(new CustomEvent("morrow:notice", { detail: "알림 권한이 허용되지 않았어요" }));
+        return;
+      }
+      const registration = await navigator.serviceWorker.ready;
+      const existing = await registration.pushManager.getSubscription();
+      const subscription = existing ?? await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(config.public_key) as unknown as BufferSource,
+      });
+      const json = subscription.toJSON();
+      const p256dh = json.keys?.p256dh;
+      const auth = json.keys?.auth;
+      if (!subscription.endpoint || !p256dh || !auth) throw new Error("푸시 구독 키를 읽지 못했어요");
+      await savePushSubscription({ endpoint: subscription.endpoint, p256dh, auth });
+      setNotificationVisible(false);
+      window.dispatchEvent(new CustomEvent("morrow:notice", { detail: "새 매치와 메시지 알림을 켰어요" }));
+    } catch (error) {
+      setNotificationVisible(false);
+      window.dispatchEvent(new CustomEvent("morrow:notice", { detail: error instanceof Error ? error.message : "알림을 켜지 못했어요" }));
+    }
   }
 
   if (!visible && !notificationVisible) return null;

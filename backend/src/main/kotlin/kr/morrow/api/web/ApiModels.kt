@@ -122,6 +122,11 @@ data class StoryRequest(
     @field:Size(max = 240) val body: String = "",
     @field:Size(max = 4_000_000) val photoDataUrl: String? = null,
 )
+data class PushSubscriptionRequest(
+    @field:NotBlank @field:Size(max = 2048) val endpoint: String,
+    @field:NotBlank @field:Size(max = 512) val p256dh: String,
+    @field:NotBlank @field:Size(max = 256) val auth: String,
+)
 data class SyncAnswerRequest(@field:Min(0) @field:Max(2) val round: Int, @field:Size(min = 1, max = 180) val answer: String)
 data class ResolveReportRequest(
     @field:Pattern(regexp = "dismiss|warn|suspend_7d|ban") val resolution: String,

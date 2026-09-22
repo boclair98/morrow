@@ -155,6 +155,10 @@ export type NotificationItem = {
   created_at: string;
 };
 
+export type PushConfig = {
+  public_key: string | null;
+};
+
 export type AccountSettings = {
   discoverable: boolean;
   marketing_opt_in: boolean;
@@ -599,6 +603,20 @@ export const readNotification = (notificationId: string) =>
   api<{ status: string }>(`/api/notifications/${notificationId}/read`, { method: "POST" });
 export const readAllNotifications = () =>
   api<{ status: string; count: number }>("/api/notifications/read-all", { method: "POST" });
+
+export const fetchPushConfig = () => api<PushConfig>("/api/push/config");
+export const savePushSubscription = (subscription: {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+}) => api<{ status: string }>("/api/push/subscription", {
+  method: "POST",
+  body: JSON.stringify(subscription),
+});
+export const removePushSubscription = (endpoint: string) =>
+  api<{ status: string }>(`/api/push/subscription?endpoint=${encodeURIComponent(endpoint)}`, {
+    method: "DELETE",
+  });
 
 export type AdminOverview = {
   users: number;

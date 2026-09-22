@@ -91,4 +91,7 @@ morrow:
   storage-access-key: ${STORAGE_ACCESS_KEY:}
   storage-secret-key: ${STORAGE_SECRET_KEY:}
   storage-public-url: ${STORAGE_PUBLIC_URL:}
+  push-vapid-public-key: ${PUSH_VAPID_PUBLIC_KEY:}
+  push-vapid-private-key: ${PUSH_VAPID_PRIVATE_KEY:}
+  push-vapid-subject: ${PUSH_VAPID_SUBJECT:mailto:hello@morrow.coders.kr}
 

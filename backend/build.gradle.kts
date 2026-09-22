@@ -29,6 +29,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.boot:spring-boot-starter-websocket")
+    implementation("nl.martijndwars:web-push:5.1.2")
     // Boot 4 keeps Flyway auto-configuration in its own starter module.
     // The starter is required to run migrations before JPA starts; the
     // PostgreSQL adapter remains explicit for the production database.

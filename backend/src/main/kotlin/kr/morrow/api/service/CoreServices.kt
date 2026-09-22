@@ -81,7 +81,10 @@ fun photoMeta(photo: ProfilePhotoEntity): Map<String, Any?> = linkedMapOf(
 )
 
 @Service
-class NotificationService(private val notifications: NotificationRepository) {
+class NotificationService(
+    private val notifications: NotificationRepository,
+    private val webPush: WebPushService,
+) {
     @Transactional
     fun create(
         userId: UUID,
@@ -93,7 +96,7 @@ class NotificationService(private val notifications: NotificationRepository) {
         dedupeKey: String? = null,
     ): NotificationEntity? {
         if (dedupeKey != null && notifications.existsByUserIdAndDedupeKey(userId, dedupeKey)) return null
-        return notifications.save(
+        val item = notifications.save(
             NotificationEntity(
                 userId = userId,
                 kind = kind,
@@ -104,6 +107,8 @@ class NotificationService(private val notifications: NotificationRepository) {
                 dedupeKey = dedupeKey,
             ),
         )
+        runCatching { webPush.send(item) }
+        return item
     }
 
     fun item(item: NotificationEntity): Map<String, Any?> = linkedMapOf(

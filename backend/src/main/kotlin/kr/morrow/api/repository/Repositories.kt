@@ -352,3 +352,9 @@ interface StoryReactionRepository : JpaRepository<StoryReactionEntity, UUID> {
     fun deleteByStoryIdAndUserId(storyId: UUID, userId: UUID): Long
 }
 
+interface PushSubscriptionRepository : JpaRepository<PushSubscriptionEntity, UUID> {
+    fun findByUserId(userId: UUID): List<PushSubscriptionEntity>
+    fun findByEndpoint(endpoint: String): PushSubscriptionEntity?
+    fun deleteByUserIdAndEndpoint(userId: UUID, endpoint: String): Long
+}
+

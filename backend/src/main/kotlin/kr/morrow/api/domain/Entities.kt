@@ -335,3 +335,18 @@ class StoryReactionEntity(
     @CreationTimestamp @Column(name = "created_at", updatable = false) var createdAt: Instant = Instant.now(),
 )
 
+@Entity
+@Table(
+    name = "push_subscriptions",
+    uniqueConstraints = [UniqueConstraint(name = "uq_push_subscriptions_endpoint", columnNames = ["endpoint"])],
+)
+class PushSubscriptionEntity(
+    @Id var id: UUID = UUID.randomUUID(),
+    @Column(name = "user_id", nullable = false) var userId: UUID = UUID.randomUUID(),
+    @Column(nullable = false, length = 2048) var endpoint: String = "",
+    @Column(nullable = false, length = 512) var p256dh: String = "",
+    @Column(nullable = false, length = 256) var auth: String = "",
+    @CreationTimestamp @Column(name = "created_at", updatable = false) var createdAt: Instant = Instant.now(),
+    @UpdateTimestamp @Column(name = "last_used_at") var lastUsedAt: Instant = Instant.now(),
+)
+

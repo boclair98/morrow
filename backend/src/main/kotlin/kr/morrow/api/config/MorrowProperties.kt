@@ -32,6 +32,9 @@ data class MorrowProperties(
     val storageAccessKey: String = "",
     val storageSecretKey: String = "",
     val storagePublicUrl: String = "",
+    val pushVapidPublicKey: String = "",
+    val pushVapidPrivateKey: String = "",
+    val pushVapidSubject: String = "mailto:hello@morrow.coders.kr",
 ) {
     val secureCookies: Boolean
         get() = runCatching { URI(publicAppUrl).scheme == "https" }.getOrDefault(true)
