@@ -11,6 +11,8 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.UUID
 
 @Service
@@ -20,6 +22,9 @@ class AdminService(
     private val reports: ReportRepository,
     private val photos: ProfilePhotoRepository,
     private val verifications: VerificationRequestRepository,
+    private val matches: MatchRepository,
+    private val messages: MessageRepository,
+    private val stories: StoryRepository,
     private val identities: AuthIdentityRepository,
     private val actions: ModerationActionRepository,
     private val notifications: NotificationService,
@@ -31,11 +36,17 @@ class AdminService(
     @Transactional(readOnly = true)
     fun overview(codersId: UUID): Map<String, Long> {
         requireAdmin(codersId)
+        val today = LocalDate.now(ZoneId.of("Asia/Seoul")).atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant()
         return mapOf(
             "users" to users.count(), "pending_reports" to reports.countByStatus("pending"),
             "pending_photos" to photos.countByModerationStatus("pending"),
             "pending_verifications" to verifications.countByStatus("pending"),
             "restricted_users" to users.countByStatusIn(listOf("suspended", "banned")),
+            "active_today" to users.countByLastSeenAtAfter(today),
+            "new_today" to users.countByFirstSeenAtAfter(today),
+            "matches_today" to matches.countByMatchedAtAfter(today),
+            "messages_today" to messages.countByCreatedAtAfter(today),
+            "stories_today" to stories.countByCreatedAtAfter(today),
         )
     }
 

@@ -312,3 +312,26 @@ class ModerationActionEntity(
     @CreationTimestamp @Column(name = "created_at") var createdAt: Instant = Instant.now(),
 )
 
+@Entity
+@Table(name = "stories")
+class StoryEntity(
+    @Id var id: UUID = UUID.randomUUID(),
+    @Column(name = "author_id", nullable = false) var authorId: UUID = UUID.randomUUID(),
+    @Column(nullable = false, length = 240) var body: String = "",
+    @Column(name = "photo_content_type", length = 32) var photoContentType: String? = null,
+    @Column(name = "photo_content", columnDefinition = "bytea") var photoContent: ByteArray? = null,
+    @Column(name = "photo_storage_key", length = 300, unique = true) var photoStorageKey: String? = null,
+    @Column(name = "photo_byte_size") var photoByteSize: Int? = null,
+    @Column(name = "expires_at", nullable = false) var expiresAt: Instant = Instant.now(),
+    @CreationTimestamp @Column(name = "created_at", updatable = false) var createdAt: Instant = Instant.now(),
+)
+
+@Entity
+@Table(name = "story_reactions")
+class StoryReactionEntity(
+    @Id var id: UUID = UUID.randomUUID(),
+    @Column(name = "story_id", nullable = false) var storyId: UUID = UUID.randomUUID(),
+    @Column(name = "user_id", nullable = false) var userId: UUID = UUID.randomUUID(),
+    @CreationTimestamp @Column(name = "created_at", updatable = false) var createdAt: Instant = Instant.now(),
+)
+

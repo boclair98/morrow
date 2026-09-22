@@ -1,0 +1,14 @@
+{
+  "name": "MORROW",
+  "short_name": "MORROW",
+  "description": "시간과 취향이 맞는 사람과 약속까지 이어지는 소개팅",
+  "lang": "ko-KR",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fffdfb",
+  "theme_color": "#ea365d",
+  "icons": [
+    { "src": "/og.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

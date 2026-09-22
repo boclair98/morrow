@@ -70,6 +70,35 @@ export type ReceivedInterest = DiscoverProfile & {
   liked_at: string;
 };
 
+export type Footprint = DiscoverProfile & {
+  viewed_at: string;
+  direction?: "incoming" | "outgoing";
+};
+
+export type StoryAuthor = {
+  id: string;
+  display_name: string;
+  age: number | null;
+  area: string | null;
+  job: string | null;
+  account_verified: boolean;
+  avatar_url: string | null;
+};
+
+export type StoryItem = {
+  id: string;
+  body: string;
+  photo_url: string | null;
+  photo_content_type: string | null;
+  photo_byte_size: number | null;
+  created_at: string;
+  expires_at: string;
+  reaction_count: number;
+  reacted: boolean;
+  mine: boolean;
+  author: StoryAuthor;
+};
+
 export type MatchItem = {
   id: string;
   person: DiscoverProfile;
@@ -342,6 +371,26 @@ export const fetchSavedProfiles = () =>
   api<{ items: DiscoverProfile[] }>("/api/saved-profiles?limit=50");
 export const fetchReceivedInterests = () =>
   api<{ items: ReceivedInterest[]; has_more: boolean }>("/api/interests/received?limit=12");
+export const fetchFootprints = (direction: "incoming" | "outgoing" = "incoming") =>
+  api<{ items: Footprint[] }>(`/api/footprints?limit=24&direction=${direction}`);
+export const fetchStories = () =>
+  api<{ items: StoryItem[] }>("/api/stories?limit=60");
+export const fetchMyStories = () =>
+  api<{ items: StoryItem[] }>("/api/stories/mine?limit=20");
+export const createStory = (body: string, photoDataUrl?: string) =>
+  api<{ item: StoryItem }>("/api/stories", {
+    method: "POST",
+    body: JSON.stringify({
+      body,
+      ...(photoDataUrl ? { photo_data_url: photoDataUrl } : {}),
+    }),
+  });
+export const toggleStoryReaction = (storyId: string) =>
+  api<{ reacted: boolean; reaction_count: number }>(`/api/stories/${storyId}/reaction`, {
+    method: "POST",
+  });
+export const deleteStory = (storyId: string) =>
+  api<{ status: string }>(`/api/stories/${storyId}`, { method: "DELETE" });
 export const saveProfileForLater = (targetId: string) =>
   api<{ status: string; saved: boolean }>(`/api/saved-profiles/${targetId}`, {
     method: "POST",
@@ -355,6 +404,8 @@ export const sendSwipe = (targetId: string, decision: "like" | "pass") =>
   api<{ matched: boolean; match_id?: string; person?: string }>("/api/swipes", {
     method: "POST", body: JSON.stringify({ target_id: targetId, decision }),
   });
+export const undoLastSwipe = () =>
+  api<{ status: string; profile: DiscoverProfile }>("/api/swipes/last", { method: "DELETE" });
 export const fetchMatches = () => api<{ items: MatchItem[] }>("/api/matches?limit=30");
 export const fetchMessages = (matchId: string, before?: string) => {
   const query = before ? `?before=${encodeURIComponent(before)}` : "";
@@ -555,6 +606,11 @@ export type AdminOverview = {
   pending_photos: number;
   pending_verifications: number;
   restricted_users: number;
+  active_today: number;
+  new_today: number;
+  matches_today: number;
+  messages_today: number;
+  stories_today: number;
 };
 export type AdminReport = {
   id: string;

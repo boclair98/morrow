@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Heart,
+  History,
   Image as ImageIcon,
   MapPin,
   MessageCircle,
@@ -39,6 +40,10 @@ import { PlacePicker } from "@/components/PlacePicker";
 import { DateCourseStudio, type DateCourseSuggestion } from "@/components/DateCourseStudio";
 import { SafetyCenter } from "@/components/SafetyCenter";
 import { MatchSyncPanel } from "@/components/MatchSyncPanel";
+import { StoriesHub } from "@/components/StoriesHub";
+import { FootprintsView } from "@/components/FootprintsView";
+import { InviteBanner } from "@/components/InviteBanner";
+import { TasteTestPanel } from "@/components/TasteTestPanel";
 import {
   getMatchNextView,
   MorrowPulse,
@@ -62,6 +67,7 @@ import {
   saveProfile,
   sendMessage,
   sendSwipe,
+  undoLastSwipe,
   createDatePlan,
   respondDatePlan,
   confirmDateSafe,
@@ -74,6 +80,7 @@ import {
   matchSocketUrl,
   fetchNotifications,
   fetchReceivedInterests,
+  fetchFootprints,
   inboxSocketUrl,
   NotificationItem,
   readAllNotifications,
@@ -81,11 +88,12 @@ import {
   removeSavedProfile,
   saveProfileForLater,
   type KakaoPlace,
+  Footprint,
 } from "@/lib/api";
 import { AREA_OPTIONS as areas, DISTANCE_OPTIONS } from "@/lib/dating-options";
 import { Me } from "@/lib/identity";
 
-type Tab = "discover" | "matches" | "activity" | "profile" | "safety" | "saved";
+type Tab = "discover" | "matches" | "activity" | "profile" | "safety" | "saved" | "footprints";
 const interests = [
   "카페",
   "전시",
@@ -172,7 +180,7 @@ function avatarGradient(value: string) {
 
 function profileQuality(me: Me) {
   const items = [
-    { key: "photo", label: "대표 사진", done: me.photos.some((photo) => photo.moderation_status !== "rejected") },
+    { key: "photo", label: "사진 3장", done: me.photos.filter((photo) => photo.moderation_status !== "rejected").length >= 3 },
     { key: "bio", label: "짧은 소개", done: Boolean(me.bio?.trim()) },
     { key: "interests", label: "관심사", done: me.interests.length >= 3 },
     { key: "time", label: "가능한 시간", done: me.availability.length > 0 },
@@ -290,6 +298,10 @@ export function MorrowDashboard({ me }: { me: Me }) {
   const [receivedLoading, setReceivedLoading] = useState(false);
   const [receivedHasMore, setReceivedHasMore] = useState(false);
   const [selectedInterest, setSelectedInterest] = useState<ReceivedInterest | null>(null);
+  const [footprints, setFootprints] = useState<Footprint[]>([]);
+  const [footprintsLoading, setFootprintsLoading] = useState(false);
+  const [footprintMode, setFootprintMode] = useState<"incoming" | "outgoing">("incoming");
+  const [lastSwipe, setLastSwipe] = useState<DiscoverProfile | null>(null);
   const [filters, setFilters] = useState<DiscoverFilters>({});
   const [hasMoreProfiles, setHasMoreProfiles] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -375,6 +387,17 @@ export function MorrowDashboard({ me }: { me: Me }) {
       setReceivedLoading(false);
     }
   }, [me.legal_complete, me.profile_complete, me.status]);
+  const loadFootprints = useCallback(async () => {
+    if (!me.profile_complete || !me.legal_complete || me.status !== "active") return;
+    setFootprintsLoading(true);
+    try {
+      setFootprints((await fetchFootprints(footprintMode)).items);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "발자국을 불러오지 못했어요");
+    } finally {
+      setFootprintsLoading(false);
+    }
+  }, [footprintMode, me.legal_complete, me.profile_complete, me.status]);
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void Promise.all([
@@ -382,13 +405,14 @@ export function MorrowDashboard({ me }: { me: Me }) {
         loadMatches(),
         loadNotifications(),
         loadReceivedInterests(),
+        loadFootprints(),
       ]);
     }, 0);
     return () => {
       window.clearTimeout(timer);
       discoverAbortRef.current?.abort();
     };
-  }, [loadMatches, loadNotifications, loadProfiles, loadReceivedInterests]);
+  }, [loadFootprints, loadMatches, loadNotifications, loadProfiles, loadReceivedInterests]);
 
   useEffect(() => {
     if (!me.profile_complete || !me.legal_complete || me.status !== "active")
@@ -426,6 +450,13 @@ export function MorrowDashboard({ me }: { me: Me }) {
             ...current.filter((item) => item.id !== payload.item.id),
           ].slice(0, 50),
         );
+        if (document.visibilityState === "hidden" && "Notification" in window && Notification.permission === "granted") {
+          try {
+            new Notification(payload.item.title, { body: payload.item.body, tag: payload.item.id });
+          } catch {
+            // Browser notification constructors can be blocked in embedded contexts.
+          }
+        }
         if (payload.item.action_type === "match") loadMatches();
       };
       socket.onclose = () => {
@@ -461,6 +492,8 @@ export function MorrowDashboard({ me }: { me: Me }) {
     }
     try {
       const result = await sendSwipe(target.id, decision);
+      setLastSwipe(target);
+      window.setTimeout(() => setLastSwipe((current) => current?.id === target.id ? null : current), 10 * 60_000);
       if (result.matched) {
         setMatchedName(result.person || target.display_name);
         loadMatches();
@@ -469,6 +502,18 @@ export function MorrowDashboard({ me }: { me: Me }) {
     } catch (error) {
       setProfiles((items) => [target, ...items]);
       setNotice(error instanceof Error ? error.message : "다시 시도해주세요");
+    }
+  }
+
+  async function undoSwipe() {
+    if (!lastSwipe) return;
+    try {
+      const result = await undoLastSwipe();
+      setProfiles((items) => [result.profile, ...items.filter((item) => item.id !== result.profile.id)]);
+      setLastSwipe(null);
+      setNotice("방금 추천을 되돌렸어요");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "추천을 되돌리지 못했어요");
     }
   }
 
@@ -637,6 +682,13 @@ export function MorrowDashboard({ me }: { me: Me }) {
                 매치
               </NavButton>
               <NavButton
+                active={tab === "footprints"}
+                onClick={() => setTab("footprints")}
+                icon={History}
+              >
+                발자국
+              </NavButton>
+              <NavButton
                 active={tab === "saved"}
                 onClick={() => {
                   setTab("saved");
@@ -728,6 +780,19 @@ export function MorrowDashboard({ me }: { me: Me }) {
           />
         ) : null}
         {tab === "discover" && (
+          <InviteBanner onNotice={setNotice} />
+        )}
+        {tab === "discover" && (
+          <StoriesHub displayName={me.display_name} onNotice={setNotice} />
+        )}
+        {tab === "discover" && <TasteTestPanel onNotice={setNotice} />}
+        {tab === "discover" && lastSwipe ? (
+          <div className="mb-5 flex items-center justify-between gap-3 rounded-2xl border border-[#f0d7d7] bg-[#fff8f7] px-4 py-3 text-sm">
+            <p className="font-bold text-[#765d62]">{lastSwipe.display_name}님을 잘못 넘겼나요? <span className="font-medium text-[#a58e91]">10분 안에 한 번 되돌릴 수 있어요.</span></p>
+            <button type="button" onClick={() => void undoSwipe()} className="shrink-0 rounded-xl bg-[#21191b] px-3 py-2 text-xs font-black text-white hover:bg-[#ea365d]">되돌리기</button>
+          </div>
+        ) : null}
+        {tab === "discover" && (
           <DiscoverFeed
             profiles={profiles}
             loading={loading}
@@ -774,6 +839,20 @@ export function MorrowDashboard({ me }: { me: Me }) {
                 items.filter((item) => item.id !== profile.id),
               )
             }
+          />
+        )}
+        {tab === "footprints" && (
+          <FootprintsView
+            items={footprints}
+            loading={footprintsLoading}
+            onRefresh={() => void loadFootprints()}
+            mode={footprintMode}
+            onModeChange={setFootprintMode}
+            onLike={(profile) => {
+              void decideProfile(profile, "like");
+              setFootprints((items) => items.filter((item) => item.id !== profile.id));
+            }}
+            onSave={(profile) => void toggleSavedProfile(profile)}
           />
         )}
         {false && tab === "discover" && (
@@ -998,7 +1077,7 @@ export function MorrowDashboard({ me }: { me: Me }) {
         {tab === "profile" && <ProfilePanelV2 me={me} />}
         {tab === "safety" && <SafetyPanel />}
       </div>
-      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-[#eee1df] bg-[#fffdfb]/95 px-2 pb-[max(8px,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-6 border-t border-[#eee1df] bg-[#fffdfb]/95 px-1 pb-[max(8px,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl md:hidden">
         <MobileNav
           active={tab === "discover"}
           onClick={() => {
@@ -1015,6 +1094,13 @@ export function MorrowDashboard({ me }: { me: Me }) {
           icon={MessageCircle}
         >
           매치
+        </MobileNav>
+        <MobileNav
+          active={tab === "footprints"}
+          onClick={() => setTab("footprints")}
+          icon={History}
+        >
+          발자국
         </MobileNav>
         <span className="relative">
           <MobileNav
@@ -1589,6 +1675,12 @@ function FeedProfileCard({
                 {profile.match_reasons[0]}
               </p>
             ) : null}
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <span className={`rounded-full px-2 py-1 text-[9px] font-black ${profile.account_verified ? "bg-[#edf8f3] text-[#287556]" : "bg-[#f7f1ef] text-[#8d7c78]"}`}>
+                {profile.account_verified ? "사진·계정 확인" : "가입 계정"}
+              </span>
+              {profile.photo_count >= 3 ? <span className="rounded-full bg-[#fff0f3] px-2 py-1 text-[9px] font-black text-[#d8405e]">사진 3장+</span> : null}
+            </div>
           </div>
             <span className="shrink-0 rounded-full bg-[#fff0f3] px-2 py-1 text-[10px] font-black text-[#d92e53]">
               {profile.compatibility}% MATCH
@@ -3275,6 +3367,9 @@ function ChatDrawer({
     match.person.common_times[0]
       ? `${match.person.common_times[0]}에는 보통 뭐 하세요?`
       : "이번 주말에 가장 하고 싶은 일이 뭐예요?",
+    "요즘 가장 자주 가는 동네나 카페가 어디예요?",
+    "첫 데이트는 카페와 산책 중 뭐가 더 좋아요?",
+    "최근에 재미있게 본 영화나 콘텐츠가 있어요?",
     "우리 둘 다 편하게 만날 수 있는 동네가 어디일까요?",
   ];
   const statusText = conversationClosed
@@ -3434,7 +3529,7 @@ function ChatDrawer({
               {messages.length === 0 && !conversationClosed && (
                 <div className="rounded-lg border border-dashed border-[#d8d8d8] bg-white p-4">
                   <p className="text-xs font-black text-[#777]">
-                    첫 문장이 어렵다면
+                    첫 문장이 어렵다면 · 질문 카드
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {starterPrompts.map((prompt) => (

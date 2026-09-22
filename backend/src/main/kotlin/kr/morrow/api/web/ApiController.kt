@@ -124,6 +124,13 @@ class ApiController(
         @RequestParam(defaultValue = "12") @Min(1) @Max(30) limit: Int,
     ) = dating.receivedLikes(identity.requirePrincipal(authentication).userId, limit)
 
+    @GetMapping("/api/footprints")
+    fun footprints(
+        authentication: Authentication?,
+        @RequestParam(defaultValue = "12") @Min(1) @Max(30) limit: Int,
+        @RequestParam(defaultValue = "incoming") direction: String,
+    ) = dating.footprints(identity.requirePrincipal(authentication).userId, limit, direction)
+
     @PostMapping("/api/saved-profiles/{targetId}")
     fun saveProfileForLater(authentication: Authentication?, @PathVariable targetId: UUID) =
         dating.saveProfileForLater(identity.requirePrincipal(authentication).userId, targetId)
@@ -135,6 +142,10 @@ class ApiController(
     @PostMapping("/api/swipes")
     fun swipe(authentication: Authentication?, @Valid @RequestBody body: SwipeRequest) =
         dating.swipe(identity.requirePrincipal(authentication).userId, body)
+
+    @DeleteMapping("/api/swipes/last")
+    fun undoLastSwipe(authentication: Authentication?) =
+        dating.undoLastSwipe(identity.requirePrincipal(authentication).userId)
 
     @GetMapping("/api/matches")
     fun matches(

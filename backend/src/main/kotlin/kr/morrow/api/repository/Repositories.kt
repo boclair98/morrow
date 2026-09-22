@@ -16,6 +16,41 @@ interface UserRepository : JpaRepository<UserEntity, UUID> {
     fun findByReferralCode(referralCode: String): UserEntity?
     fun countByReferredByUserId(userId: UUID): Long
     fun countByStatusIn(statuses: Collection<String>): Long
+    fun countByLastSeenAtAfter(after: Instant): Long
+    fun countByFirstSeenAtAfter(after: Instant): Long
+
+    @Query(
+        """
+        select u from UserEntity u
+        where u.id <> :viewerId
+          and u.profileComplete = true
+          and u.status = 'active'
+          and u.discoverable = true
+          and u.termsVersion = :termsVersion
+          and u.privacyVersion = :privacyVersion
+          and u.adultConfirmedAt is not null
+          and u.age between :minAge and :maxAge
+          and u.minPreferredAge <= :viewerAge
+          and u.maxPreferredAge >= :viewerAge
+          and (:seeking = 'all' or u.gender = :seeking)
+          and (u.seeking = 'all' or u.seeking = :viewerGender)
+          and not exists (select b.id from BlockEntity b where
+                (b.blockerId = :viewerId and b.blockedId = u.id)
+             or (b.blockerId = u.id and b.blockedId = :viewerId))
+        order by u.lastSeenAt desc
+        """,
+    )
+    fun findStoryAuthors(
+        @Param("viewerId") viewerId: UUID,
+        @Param("termsVersion") termsVersion: String,
+        @Param("privacyVersion") privacyVersion: String,
+        @Param("minAge") minAge: Int,
+        @Param("maxAge") maxAge: Int,
+        @Param("viewerAge") viewerAge: Int,
+        @Param("seeking") seeking: String,
+        @Param("viewerGender") viewerGender: String,
+        pageable: Pageable,
+    ): List<UserEntity>
 
     @Query(
         """
@@ -57,6 +92,11 @@ interface UserRepository : JpaRepository<UserEntity, UUID> {
 
 interface ProfilePhotoRepository : JpaRepository<ProfilePhotoEntity, UUID> {
     fun findByOwnerIdOrderByPositionAscCreatedAtAsc(ownerId: UUID): List<ProfilePhotoEntity>
+    fun findByOwnerIdAndIsPublicTrueAndModerationStatusOrderByPositionAscCreatedAtAsc(
+        ownerId: UUID,
+        moderationStatus: String,
+        pageable: Pageable,
+    ): List<ProfilePhotoEntity>
     fun findByOwnerIdInAndIsPublicTrueAndModerationStatusOrderByPositionAscCreatedAtAsc(
         ownerIds: Collection<UUID>,
         moderationStatus: String,
@@ -73,6 +113,11 @@ interface SwipeRepository : JpaRepository<SwipeEntity, UUID> {
     fun existsBySwiperIdAndTargetIdAndDecision(swiperId: UUID, targetId: UUID, decision: String): Boolean
     fun countBySwiperIdAndCreatedAtAfter(swiperId: UUID, createdAt: Instant): Long
     fun findBySwiperId(swiperId: UUID): List<SwipeEntity>
+    fun findFirstBySwiperIdOrderByCreatedAtDesc(swiperId: UUID): SwipeEntity?
+
+    @Modifying
+    @Query("delete from SwipeEntity s where s.swiperId = :swiperId and s.targetId = :targetId")
+    fun deleteBySwiperIdAndTargetId(@Param("swiperId") swiperId: UUID, @Param("targetId") targetId: UUID): Int
 
     /**
      * Returns current incoming likes that are still safe to show.  The
@@ -102,6 +147,7 @@ interface SwipeRepository : JpaRepository<SwipeEntity, UUID> {
 }
 
 interface MatchRepository : JpaRepository<MatchEntity, UUID> {
+    fun countByMatchedAtAfter(after: Instant): Long
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select m from MatchEntity m where m.userAId = :userA and m.userBId = :userB")
     fun findPairForUpdate(@Param("userA") userA: UUID, @Param("userB") userB: UUID): MatchEntity?
@@ -114,6 +160,7 @@ interface MatchRepository : JpaRepository<MatchEntity, UUID> {
 }
 
 interface MessageRepository : JpaRepository<MessageEntity, UUID> {
+    fun countByCreatedAtAfter(after: Instant): Long
     fun findBySenderIdAndClientId(senderId: UUID, clientId: UUID): MessageEntity?
     fun findByMatchIdOrderByCreatedAtDesc(matchId: UUID, pageable: Pageable): List<MessageEntity>
     fun findByMatchIdAndCreatedAtBeforeOrderByCreatedAtDesc(matchId: UUID, createdAt: Instant, pageable: Pageable): List<MessageEntity>
@@ -218,6 +265,18 @@ interface VerificationRequestRepository : JpaRepository<VerificationRequestEntit
 interface DiscoveryImpressionRepository : JpaRepository<DiscoveryImpressionEntity, UUID> {
     @Query("select d.targetId, count(d.id) from DiscoveryImpressionEntity d where d.targetId in :targetIds and d.shownAt >= :after group by d.targetId")
     fun exposureCounts(@Param("targetIds") targetIds: Collection<UUID>, @Param("after") after: Instant): List<Array<Any>>
+
+    fun findByTargetIdAndShownAtAfterOrderByShownAtDesc(
+        targetId: UUID,
+        after: Instant,
+        pageable: Pageable,
+    ): List<DiscoveryImpressionEntity>
+
+    fun findByViewerIdAndShownAtAfterOrderByShownAtDesc(
+        viewerId: UUID,
+        after: Instant,
+        pageable: Pageable,
+    ): List<DiscoveryImpressionEntity>
 }
 
 interface SavedProfileRepository : JpaRepository<SavedProfileEntity, UUID> {
@@ -262,4 +321,34 @@ interface MatchSyncAnswerRepository : JpaRepository<MatchSyncAnswerEntity, UUID>
 }
 
 interface ModerationActionRepository : JpaRepository<ModerationActionEntity, UUID>
+
+interface StoryRepository : JpaRepository<StoryEntity, UUID> {
+    fun countByCreatedAtAfter(after: Instant): Long
+    @Query(
+        """
+        select s from StoryEntity s
+        where s.expiresAt > :now
+          and s.authorId in :authorIds
+        order by s.createdAt desc
+        """,
+    )
+    fun findActiveForAuthors(
+        @Param("authorIds") authorIds: Collection<UUID>,
+        @Param("now") now: Instant,
+        pageable: Pageable,
+    ): List<StoryEntity>
+
+    fun findByAuthorIdAndExpiresAtAfterOrderByCreatedAtDesc(
+        authorId: UUID,
+        now: Instant,
+        pageable: Pageable,
+    ): List<StoryEntity>
+}
+
+interface StoryReactionRepository : JpaRepository<StoryReactionEntity, UUID> {
+    fun existsByStoryIdAndUserId(storyId: UUID, userId: UUID): Boolean
+    fun countByStoryId(storyId: UUID): Long
+    fun findByStoryIdInAndUserId(storyIds: Collection<UUID>, userId: UUID): List<StoryReactionEntity>
+    fun deleteByStoryIdAndUserId(storyId: UUID, userId: UUID): Long
+}
 

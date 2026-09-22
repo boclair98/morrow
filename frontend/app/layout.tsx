@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 
 import { DevDeployBadge } from "@/components/DevDeployBadge";
 import { WarmingBar } from "@/components/WarmingBanner";
+import { PwaInstallPrompt } from "@/components/PwaInstallPrompt";
 
 import "./globals.css";
 
@@ -27,6 +28,8 @@ export const metadata: Metadata = {
     description: "시간과 취향이 맞는 실제 회원을 만나고, 3분 Sync로 첫 대화부터 안전한 약속까지 이어가는 MORROW.",
     images: ["/og.png"],
   },
+  manifest: "/manifest.webmanifest",
+  icons: { icon: "/og.png", apple: "/og.png" },
 };
 
 export default function RootLayout({
@@ -39,6 +42,7 @@ export default function RootLayout({
       <body>
         <WarmingBar />
         <DevDeployBadge />
+        <PwaInstallPrompt />
         {children}
       </body>
     </html>

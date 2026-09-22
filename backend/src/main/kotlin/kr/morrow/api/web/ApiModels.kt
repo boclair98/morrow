@@ -118,6 +118,10 @@ data class DeleteAccountRequest(val confirmation: String)
 data class VerificationRequestBody(@field:Size(max = 240) val note: String = "")
 data class ReferralRequest(@field:Size(min = 8, max = 12) val code: String)
 data class PhotoRequest(@field:Size(min = 32, max = 4_000_000) val dataUrl: String, val isPublic: Boolean = true)
+data class StoryRequest(
+    @field:Size(max = 240) val body: String = "",
+    @field:Size(max = 4_000_000) val photoDataUrl: String? = null,
+)
 data class SyncAnswerRequest(@field:Min(0) @field:Max(2) val round: Int, @field:Size(min = 1, max = 180) val answer: String)
 data class ResolveReportRequest(
     @field:Pattern(regexp = "dismiss|warn|suspend_7d|ban") val resolution: String,

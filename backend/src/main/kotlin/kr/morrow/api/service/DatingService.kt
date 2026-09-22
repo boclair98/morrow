@@ -227,6 +227,42 @@ class DatingService(
         return mapOf("items" to items.take(safeLimit), "has_more" to (items.size > safeLimit))
     }
 
+    /**
+     * Return recent, privacy-safe profile visits.  Discovery impressions are
+     * intentionally reused as the visit signal so every profile view is
+     * immediately useful without introducing a second tracking pipeline.
+     */
+    @Transactional(readOnly = true)
+    fun footprints(userId: UUID, limit: Int, direction: String = "incoming"): Map<String, Any> {
+        val viewer = userService.current(userId)
+        val mode = if (direction == "outgoing") "outgoing" else "incoming"
+        val safeLimit = limit.coerceIn(1, 30)
+        val rows = if (mode == "outgoing") {
+            impressions.findByViewerIdAndShownAtAfterOrderByShownAtDesc(viewer.id, Instant.now().minus(Duration.ofDays(30)), PageRequest.of(0, safeLimit * 4))
+        } else {
+            impressions.findByTargetIdAndShownAtAfterOrderByShownAtDesc(viewer.id, Instant.now().minus(Duration.ofDays(30)), PageRequest.of(0, safeLimit * 4))
+        }
+        val uniqueRows = rows.distinctBy { if (mode == "outgoing") it.targetId else it.viewerId }.take(safeLimit)
+        if (uniqueRows.isEmpty()) return mapOf("items" to emptyList<Map<String, Any?>>())
+        val visitorIds = if (mode == "outgoing") uniqueRows.map { it.targetId } else uniqueRows.map { it.viewerId }
+        val people = users.findAllById(visitorIds).associateBy { it.id }
+        val photoGroups = photos
+            .findByOwnerIdInAndIsPublicTrueAndModerationStatusOrderByPositionAscCreatedAtAsc(visitorIds, "approved")
+            .groupBy { it.ownerId }
+        val savedIds = saved.findByUserIdAndTargetUserIdIn(viewer.id, visitorIds).map { it.targetUserId }.toSet()
+        val items = uniqueRows.mapNotNull { row ->
+            val visitor = people[if (mode == "outgoing") row.targetId else row.viewerId] ?: return@mapNotNull null
+            if (!visitor.profileComplete || visitor.status != "active" || !visitor.discoverable || !userService.legalComplete(visitor)) return@mapNotNull null
+            if (blocks.existsByBlockerIdAndBlockedId(viewer.id, visitor.id) || blocks.existsByBlockerIdAndBlockedId(visitor.id, viewer.id)) return@mapNotNull null
+            linkedMapOf<String, Any?>().apply {
+                putAll(userCard(visitor, viewer, photoGroups[visitor.id].orEmpty(), saved = visitor.id in savedIds))
+                put("viewed_at", row.shownAt)
+                put("direction", mode)
+            }
+        }
+        return mapOf("items" to items)
+    }
+
     @Transactional
     fun saveProfileForLater(userId: UUID, targetId: UUID): Map<String, Any> {
         val viewer = userService.current(userId)
@@ -328,6 +364,25 @@ class DatingService(
             realtime.publishInbox(target.id, mapOf("type" to "match_created", "match_id" to finalMatch.id.toString()))
         }
         return mapOf("matched" to true, "match_id" to finalMatch.id.toString(), "person" to target.displayName)
+    }
+
+    @Transactional
+    fun undoLastSwipe(userId: UUID): Map<String, Any?> {
+        val user = userService.current(userId)
+        val swipe = swipes.findFirstBySwiperIdOrderByCreatedAtDesc(user.id)
+            ?: throw ApiException(404, "되돌릴 추천이 없어요")
+        if (swipe.createdAt.isBefore(Instant.now().minus(Duration.ofMinutes(10)))) {
+            throw ApiException(409, "10분이 지난 추천은 되돌릴 수 없어요")
+        }
+        val pair = listOf(user.id, swipe.targetId).sortedBy(UUID::toString)
+        val activeMatch = matches.findPairForUpdate(pair[0], pair[1])
+        if (activeMatch?.status == "active") throw ApiException(409, "매칭된 인연은 되돌릴 수 없어요")
+        val target = users.findById(swipe.targetId).orElseThrow { ApiException(404, "프로필을 찾지 못했어요") }
+        swipes.deleteBySwiperIdAndTargetId(user.id, target.id)
+        val photoGroups = photos
+            .findByOwnerIdInAndIsPublicTrueAndModerationStatusOrderByPositionAscCreatedAtAsc(listOf(target.id), "approved")
+            .groupBy { it.ownerId }
+        return mapOf("status" to "undone", "profile" to userCard(target, user, photoGroups[target.id].orEmpty(), saved = saved.existsByUserIdAndTargetUserId(user.id, target.id)))
     }
 
     @Transactional(readOnly = true)
