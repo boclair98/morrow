@@ -25,9 +25,9 @@ type MorrowPulseProps = {
 };
 
 const stages = [
-  { label: "발견", icon: Users },
-  { label: "Sync · 대화", icon: MessageCircle },
-  { label: "약속", icon: CalendarDays },
+  { label: "발견", icon: Users, action: "discover" },
+  { label: "Sync · 대화", icon: MessageCircle, action: "sync" },
+  { label: "약속", icon: CalendarDays, action: "plan" },
 ] as const;
 
 function nextViewForMatch(match: MatchItem): DrawerView {
@@ -113,6 +113,26 @@ export function MorrowPulse({
     onDiscover();
   }
 
+  function handleStage(action: (typeof stages)[number]["action"]) {
+    if (action === "discover") {
+      onDiscover();
+      return;
+    }
+
+    const target =
+      action === "sync"
+        ? matches.find((match) => !match.last_message) ?? matches[0]
+        : matches.find((match) => Boolean(match.last_message)) ?? matches[0];
+
+    if (target) {
+      onOpenMatch(target, action === "sync" ? "sync" : "plans");
+      return;
+    }
+
+    // No match yet: keep the step useful by taking the member to discovery.
+    onDiscover();
+  }
+
   return (
     <section
       aria-labelledby="morrow-pulse-title"
@@ -149,13 +169,18 @@ export function MorrowPulse({
             className="mt-5 grid max-w-[590px] grid-cols-3 gap-1.5"
             aria-label="연결 단계"
           >
-            {stages.map(({ label, icon: Icon }, index) => {
+            {stages.map(({ label, icon: Icon, action }, index) => {
               const complete = index < activeStage;
               const active = index === activeStage;
               return (
-                <div
+                <button
+                  type="button"
                   key={label}
-                  className={`flex min-w-0 items-center gap-2 rounded-xl border px-2.5 py-2.5 text-[10px] font-bold transition sm:px-3 ${active ? "border-[#ea365d]/35 bg-white text-[#271d20] shadow-sm" : complete ? "border-[#ff9daf]/40 bg-[#fff0f3] text-[#d92e53]" : "border-[#eadedb] bg-white/55 text-[#a39296]"}`}
+                  onClick={() => handleStage(action)}
+                  aria-current={active ? "step" : undefined}
+                  aria-label={`${label} 단계로 이동`}
+                  title={`${label} 단계 열기`}
+                  className={`group flex min-w-0 cursor-pointer items-center gap-2 rounded-xl border px-2.5 py-2.5 text-left text-[10px] font-bold transition hover:-translate-y-0.5 hover:border-[#ea365d]/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ea365d] focus-visible:ring-offset-2 sm:px-3 ${active ? "border-[#ea365d]/35 bg-white text-[#271d20] shadow-sm" : complete ? "border-[#ff9daf]/40 bg-[#fff0f3] text-[#d92e53]" : "border-[#eadedb] bg-white/55 text-[#a39296]"}`}
                 >
                   <span
                     className={`grid size-6 shrink-0 place-items-center rounded-full ${active ? "bg-[#271d20] text-white" : complete ? "bg-[#ea365d] text-white" : "bg-[#eee5e3] text-[#998a8d]"}`}
@@ -163,7 +188,7 @@ export function MorrowPulse({
                     {complete ? <Check className="size-3" /> : <Icon className="size-3" />}
                   </span>
                   <span className="truncate">{label}</span>
-                </div>
+                </button>
               );
             })}
           </div>
