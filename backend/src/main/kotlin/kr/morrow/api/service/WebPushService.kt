@@ -74,7 +74,7 @@ class WebPushService(
         }.getOrNull() ?: return
         targets.forEach { subscription ->
             runCatching {
-                val response = push.send(
+                push.send(
                     Notification(
                         subscription.endpoint,
                         subscription.p256dh,
@@ -83,9 +83,7 @@ class WebPushService(
                         86_400,
                     ),
                 )
-                val status = response.statusLine.statusCode
-                if (status == 404 || status == 410) subscriptions.delete(subscription)
-                else if (status in 200..299) subscription.lastUsedAt = Instant.now()
+                subscription.lastUsedAt = Instant.now()
             }
         }
     }
