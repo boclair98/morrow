@@ -3,7 +3,7 @@ FROM gradle:9.7.1-jdk21-alpine AS build
 WORKDIR /workspace
 COPY --chown=gradle:gradle build.gradle.kts settings.gradle.kts ./
 COPY --chown=gradle:gradle src ./src
-RUN gradle --no-daemon --stacktrace bootJar
+RUN gradle --no-daemon --console=plain bootJar > /tmp/gradle-build.log 2>&1 || (grep -E "e: |error:|Caused by:|FAILURE|Could not|Unresolved|Type mismatch|Exception" /tmp/gradle-build.log | tail -n 160; exit 1)
 
 FROM eclipse-temurin:25.0.4_7-jre-alpine
 
