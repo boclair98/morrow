@@ -3,9 +3,12 @@
 import { Bell, Download, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { useMe } from "@/lib/identity";
+
 type InstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: "accepted" | "dismissed" }> };
 
 export function PwaInstallPrompt() {
+  const me = useMe();
   const [installEvent, setInstallEvent] = useState<InstallPromptEvent | null>(null);
   const [visible, setVisible] = useState(false);
   const [notificationVisible, setNotificationVisible] = useState(false);
@@ -20,13 +23,13 @@ export function PwaInstallPrompt() {
     };
     window.addEventListener("beforeinstallprompt", onInstall);
     const notificationTimer = window.setTimeout(() => {
-      if ("Notification" in window && Notification.permission === "default") setNotificationVisible(true);
+      if (me && "Notification" in window && Notification.permission === "default") setNotificationVisible(true);
     }, 0);
     return () => {
       window.clearTimeout(notificationTimer);
       window.removeEventListener("beforeinstallprompt", onInstall);
     };
-  }, []);
+  }, [me]);
 
   async function install() {
     if (!installEvent) return;
